@@ -40,7 +40,7 @@ The project is modularly structured as follows:
 ## How to Run (Loader Bootstrap)
 
 Execute the following loader bootstrap script inside your execution environment.
-# Important: Please change YOUR_USERNAME and YOUR_REPO_NAME to your actual GitHub account and repository names before running.
+Important: Please change YOUR_USERNAME and YOUR_REPO_NAME to your actual GitHub account and repository names before running.
 
 ```lua
 local HttpService = game:GetService("HttpService")
