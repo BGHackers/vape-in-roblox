@@ -2,21 +2,6 @@
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
--- ── 🌟【自動登録用コンポーネントリスト】 ──
--- 新しいコンポーネント（TextBoxなど）を追加したい場合は、ここに1行 require を
--- 追加するだけで、自動的に Module:Create[コンポーネント名](...) が使用可能になります。
--- src/gui/components/Module.lua
-
--- src/gui/components/Module.lua
-
--- src/gui/components/Module.lua
-
--- src/gui/components/Module.lua
--- src/gui/components/Module.lua
--- src/gui/components/Module.lua
-
--- src/gui/components/Module.lua
-
 local components = {
     Toggle        = require("gui.components.Toggle"),
     Slider        = require("gui.components.Slider"),
@@ -29,30 +14,22 @@ local components = {
 }
 local Module = {}
 
--- src/gui/components/Module.lua の 15行目付近（一括生成ループ箇所）
-
--- ── 🌟 【動的バインディング】components内のコンポーネントからCreateメソッドを自動一括生成 ──
 for compName, compClass in pairs(components) do
     local methodName = "Create" .. compName
     Module[methodName] = function(self, ...)
-        -- 🌟 引数リストの末尾に、親モジュールである self を安全に挿入して渡します
         local args = {...}
         table.insert(args, self)
         
-        -- parent（self.OptionsFrame）を第1引数にしてコンポーネントを生成
         local res = compClass.new(self.OptionsFrame, unpack(args))
         
-        -- 生成されたオブジェクトをOptionsテーブルに自動で登録
         local optionName = (res.Name) or (res.Object and res.Object.Name) or compName
         self.Options[optionName] = res
         
-        -- 高さの自動更新
         self:_refreshOptionsHeight()
         return res
     end
 end
 
--- クラス定義のメタテーブルを紐付け
 Module.__index = Module
 
 local DEBUG_ENABLED = true
@@ -60,26 +37,21 @@ local function debugPrint(...)
     if DEBUG_ENABLED then print("[Module]", ...) end
 end
 
--- ── Visual constants ────────────────────────────────────────────────────────
 local TWEEN_INFO   = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 local FONT_SEMI    = Enum.Font.SourceSansSemibold
 local FONT_BOLD    = Enum.Font.SourceSansBold
 
--- Text
 local COL_TEXT_OFF    = Color3.fromRGB(130, 130, 130)
 local COL_TEXT_HOVER  = Color3.fromRGB(210, 210, 210)
 local COL_TEXT_ON     = Color3.fromRGB(255, 255, 255)
 
--- Icon
 local COL_ICON_OFF    = Color3.fromRGB(95,  95,  95)
 local COL_ICON_HOVER  = Color3.fromRGB(170, 170, 170)
 local COL_ICON_ON     = Color3.fromRGB(200, 200, 200)
 
--- Backgrounds
 local COL_HOVER_BG    = Color3.fromRGB(255, 255, 255)
 local COL_ACTIVE_BG   = Color3.fromRGB(16,  133, 96)
 
--- Fallback palette
 local default_uipallet = {
     Main  = Color3.fromRGB(26, 25, 26),
     Text  = COL_TEXT_OFF,
@@ -87,7 +59,6 @@ local default_uipallet = {
     Tween = TWEEN_INFO,
 }
 
--- ── Helpers ─────────────────────────────────────────────────────────────────
 local function addMaid(obj)
     obj.Connections = {}
     function obj:Clean(cb)
@@ -120,7 +91,6 @@ end
 local function colorLight(c, n) local h,s,v = c:ToHSV(); return Color3.fromHSV(h,s,math.clamp(v+n,0,1)) end
 local function colorDark (c, n) local h,s,v = c:ToHSV(); return Color3.fromHSV(h,s,math.clamp(v-n,0,1)) end
 
--- アコーディオンの展開高さをコンテンツぴったりに合わせるため、不要な余白 (+ 24) を削除
 local function calcOptionsHeight(frame, layout)
     local h = layout.AbsoluteContentSize.Y
     if h > 0 then return h end
@@ -133,7 +103,6 @@ local function calcOptionsHeight(frame, layout)
     return total + math.max(cnt-1,0)*4
 end
 
--- Toggle専用：文字サイズを16に拡大し、Y座標のズレを防ぐために自動で中央揃えに矯正するヘルパー
 local function adjustComponentTextSize(s)
     local function traverse(instance)
         if instance:IsA("TextLabel") or instance:IsA("TextButton") then
@@ -141,7 +110,6 @@ local function adjustComponentTextSize(s)
                 instance.TextSize = 16
             end
         end
-        -- 小さなボタンや画像フレームを親コンテナに対して垂直中央揃え（AnchorPoint.Y=0.5, Position.Y=0.5）にする
         if instance:IsA("Frame") or instance:IsA("TextButton") or instance:IsA("ImageLabel") then
             if instance.Size.Y.Offset > 0 and instance.Size.Y.Offset < 30 then
                 instance.AnchorPoint = Vector2.new(instance.AnchorPoint.X, 0.5)
@@ -164,7 +132,7 @@ local function adjustComponentTextSize(s)
     end
 end
 
--- ── Constructor ─────────────────────────────────────────────────────────────
+-- Constructor
 function Module.new(parent, nameOrSettings, callback, assets, api)
     local self = setmetatable({}, Module)
 
@@ -174,9 +142,13 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
         name     = modulesettings.Name
         callback = modulesettings.Function
     end
+
+    -- Safety check: Avoid "attempt to concatenate nil with string" if name is missing or nil
+    if not name or name == "" then
+        name = "UnnamedModule"
+    end
     debugPrint("new:", name)
 
-    -- Resolve globals
     local mapi   = api or mainapi or (shared.vape) or (shared.VapeMenu)
     local libs   = mapi and mapi.Libraries
     local pal    = (libs and libs.uipallet) or (uipallet and uipallet.Main and uipallet) or default_uipallet
@@ -207,16 +179,12 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     self.IsBinding      = false
     self.OptionsExpanded = false
 
-    -- ── 親コンテナ強制密着ロジック ──
-    -- リスト親フレームおよびスクロール親フレームをウィンドウのフチに完全に密着させ、1pxの切り取り余白を排除します。
     task.spawn(function()
         if parent then
-            -- 直接の親（モジュールを格納しているFrame）の余白をリセットして左右に伸ばす
             if parent:IsA("Frame") or parent:IsA("ScrollingFrame") then
                 parent.Size = UDim2.new(1, 0, parent.Size.Y.Scale, parent.Size.Y.Offset)
                 parent.Position = UDim2.new(0, 0, parent.Position.Y.Scale, parent.Position.Y.Offset)
             end
-            -- スクロール機能を提供するScrollingFrame先祖を探し、その横幅と位置を強制フラッシュする
             local scrollParent = parent:IsA("ScrollingFrame") and parent or parent:FindFirstAncestorWhichIsA("ScrollingFrame")
             if scrollParent then
                 scrollParent.Size = UDim2.new(1, 0, scrollParent.Size.Y.Scale, scrollParent.Size.Y.Offset)
@@ -225,7 +193,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
         end
     end)
 
-    -- Outer wrapper (親コンテナ自体がフチに密着したため、Scale = 1 で完全にフチに揃います)
     local moduleFrame = Instance.new("Frame")
     moduleFrame.Name              = name .. "Frame"
     moduleFrame.Size              = UDim2.new(1, 0, 0, 44)
@@ -233,7 +200,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     moduleFrame.BorderSizePixel   = 0
     moduleFrame.Parent            = parent
 
-    -- Root button
     local button = Instance.new("TextButton")
     button.Name               = name
     button.Size               = UDim2.new(1, 0, 0, 44)
@@ -244,7 +210,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     button.ZIndex             = 4
     button.Parent             = moduleFrame
 
-    -- Hover background
     local hoverBg = Instance.new("Frame")
     hoverBg.Name                  = "HoverBg"
     hoverBg.Position              = UDim2.new(0, 0, 0, 0)
@@ -255,7 +220,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     hoverBg.ZIndex                = 2
     hoverBg.Parent                = button
 
-    -- Active background
     local activeBg = Instance.new("Frame")
     activeBg.Name                  = "ActiveBg"
     activeBg.Position              = UDim2.new(0, 0, 0, 0)
@@ -266,24 +230,21 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     activeBg.ZIndex                = 3
     activeBg.Parent                = button
 
-    -- Gradient
     local gradient = Instance.new("UIGradient")
     gradient.Rotation = 90
     gradient.Enabled  = false
     gradient.Parent   = activeBg
 
-    -- Divider line (モジュール間の境界線。ON/OFF問わず常に表示)
     local divider = Instance.new("Frame")
     divider.Name             = "Divider"
     divider.Size             = UDim2.new(1, 0, 0, 1)
     divider.Position         = UDim2.new(0, 0, 1, -1)
     divider.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
     divider.BorderSizePixel  = 0
-    divider.Visible          = true -- 常に表示
+    divider.Visible          = true
     divider.ZIndex           = 4
     divider.Parent             = button
 
-    -- Module name label (位置12px)
     local label = Instance.new("TextLabel")
     label.Name               = "Label"
     label.Size               = UDim2.new(1, -90, 1, 0)
@@ -298,7 +259,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     if not ok then label.Font = FONT_SEMI end
     label.Parent = button
 
-    -- Small dot (Safe hide to match original layout)
     local colorDotFrame = Instance.new("Frame")
     colorDotFrame.Name               = "ColorDot"
     colorDotFrame.Size               = UDim2.fromOffset(0, 0)
@@ -309,7 +269,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     colorDotFrame.ZIndex             = 5
     colorDotFrame.Parent             = button
 
-    -- ⋮ option expand button (垂直中央 0.5,0 / 高さ 18px / 右端 -8px)
     local optionBtn = Instance.new("TextButton")
     optionBtn.Name               = "Dots"
     optionBtn.Size               = UDim2.fromOffset(12, 18)
@@ -324,7 +283,7 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     optionIcon.Name              = "DotsIcon"
     optionIcon.Size              = UDim2.fromOffset(14, 14)
     optionIcon.AnchorPoint       = Vector2.new(0.5, 0.5)
-    optionIcon.Position          = UDim2.new(0.5, 0, 0.5, -1) -- アセットの余白を考慮し、1px上に補正
+    optionIcon.Position          = UDim2.new(0.5, 0, 0.5, -1)
     optionIcon.BackgroundTransparency = 1
     optionIcon.Image             = getAsset(self, "newvape/assets/new/dots.png", "rbxassetid://10734897387")
     optionIcon.ImageColor3       = COL_ICON_OFF
@@ -332,7 +291,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     optionIcon.ZIndex            = 6
     optionIcon.Parent            = optionBtn
 
-    -- Bind button (垂直中央 0.5,0 / 高さ 18px / 右端 -26px / 隙間6px)
     local bindBtn = Instance.new("TextButton")
     bindBtn.Name               = "Bind"
     bindBtn.Size               = UDim2.fromOffset(18, 18)
@@ -343,7 +301,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     bindBtn.ZIndex             = 5
     bindBtn.Parent             = button
 
-    -- BindFrame (18x18pxのサイズを完全に維持)
     local bindFrame = Instance.new("Frame")
     bindFrame.Name               = "BindFrame"
     bindFrame.Size               = UDim2.new(1, 0, 1, 0)
@@ -364,7 +321,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = bindFrame
 
-    -- Bind icon (完全に中央揃え)
     local bindIcon = Instance.new("ImageLabel")
     bindIcon.Name              = "Icon"
     bindIcon.Size              = UDim2.fromOffset(12, 12)
@@ -377,7 +333,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     bindIcon.Image             = (type(assets) == "table" and assets.bind) or getAsset(self, "newvape/assets/new/bind.png", "rbxassetid://14368304734")
     bindIcon.Parent            = bindFrame
 
-    -- BindText
     local bindText = Instance.new("TextLabel")
     bindText.Name              = "BindText"
     bindText.Size              = UDim2.new(1, 0, 1, 0)
@@ -391,7 +346,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     if not bfok then bindText.Font = FONT_BOLD end
     bindText.Parent = bindFrame
 
-    -- ★ Star button (垂直中央 0.5,0 / 高さ 24px / 右端 -50px / ONのときのみ表示)
     local starBtn = Instance.new("TextButton")
     starBtn.Name               = "StarBtn"
     starBtn.Size               = UDim2.fromOffset(24, 24)
@@ -403,7 +357,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     starBtn.Visible            = false
     starBtn.Parent             = button
 
-    -- ★ Star TextLabel
     local starIcon = Instance.new("TextLabel")
     starIcon.Name              = "Icon"
     starIcon.Size              = UDim2.new(1, 0, 1, 0)
@@ -419,7 +372,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     starIcon.ZIndex            = 6
     starIcon.Parent            = starBtn
 
-    -- Options accordion frame (親コンテナに100%追従)
     local optionsFrame = Instance.new("Frame")
     optionsFrame.Name              = "OptionsFrame"
     optionsFrame.Size              = UDim2.new(1, 0, 0, 0)
@@ -437,7 +389,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     optionsLayout.HorizontalAlignment  = Enum.HorizontalAlignment.Center
     optionsLayout.Parent               = optionsFrame
 
-    -- Hover / click events
     local hoverTime = 0.15
     local ease, dir = Enum.EasingStyle.Quart, Enum.EasingDirection.Out
 
@@ -455,7 +406,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
         TweenService:Create(optionIcon, TweenInfo.new(hoverTime,ease,dir), {ImageColor3 = COL_ICON_OFF}):Play()
     end)
 
-    -- Bindホバー時の微弱なハイライト
     bindBtn.MouseEnter:Connect(function()
         TweenService:Create(bindFrame, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundTransparency = 0.45
@@ -498,7 +448,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
         end)
     end)
 
-    -- Assign to self
     self.Frame         = moduleFrame
     self.Object        = button
     self.HoverBg       = hoverBg
@@ -520,7 +469,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     self.OptionsLayout = optionsLayout
     self.Children      = optionsFrame
 
-    -- Dynamic component injection
     local comps = (mapi and mapi.Components) or (shared.vape and shared.vape.Components)
     if type(comps) == "table" then
         for k, v in pairs(comps) do
@@ -538,7 +486,7 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     return self
 end
 
--- ── Methods ──────────────────────────────────────────────────────────────────
+-- Methods
 
 function Module:SetBind(tab, mouse)
     debugPrint("SetBind:", self.Name, table.concat(tab, "+"))
@@ -560,8 +508,6 @@ function Module:UpdateBindState()
     end
 end
 
--- src/gui/components/Module.lua の 190行目付近
-
 function Module:SetState(state, multiple)
     debugPrint("SetState:", self.Name, state)
     self.Enabled = state
@@ -572,12 +518,10 @@ function Module:SetState(state, multiple)
         TextColor3 = state and COL_TEXT_ON or COL_TEXT_OFF
     }):Play()
 
-    -- Color dot visibility
     TweenService:Create(self.ColorDot, TWEEN_INFO, {
         BackgroundTransparency = state and 0 or 1
     }):Play()
 
-    -- Active background color
     local mapi = self.mainapi or (shared.vape and shared.vape.mainapi)
     local activeCol = COL_ACTIVE_BG
     local rainbow = mapi and mapi.GUIColor and mapi.GUIColor.Rainbow and mapi.RainbowMode and mapi.RainbowMode.Value ~= "Retro"
@@ -592,12 +536,12 @@ function Module:SetState(state, multiple)
     if self.tween and self.tween.Tween then
         self.tween:Tween(self.ActiveBg, self.uipallet.Tween, {
             BackgroundTransparency = state and 0 or 1,
-            BackgroundColor3       = activeCol, -- 🌟 【修正】色を白に切り替えず、そのままの色のまま透明度だけを下げます
+            BackgroundColor3       = activeCol,
         })
     else
         TweenService:Create(self.ActiveBg, TWEEN_INFO, {
             BackgroundTransparency = state and 0 or 1,
-            BackgroundColor3       = activeCol, -- 🌟 【修正】同上
+            BackgroundColor3       = activeCol,
         }):Play()
     end
 
@@ -609,10 +553,8 @@ function Module:SetState(state, multiple)
         ImageColor3 = state and COL_TEXT_ON or COL_TEXT_OFF
     }):Play()
 
-    -- ホバー背景の透明度をリセット
     TweenService:Create(self.HoverBg, TWEEN_INFO, {BackgroundTransparency = 1}):Play()
 
-    -- 星ボタンの表示切り替え（ONのときのみ表示）と色変更（Starredのときは白色に）
     self.StarButton.Visible = state
     TweenService:Create(self.StarIcon, TWEEN_INFO, {
         TextColor3 = self.Starred and Color3.fromRGB(255, 255, 255) or (state and Color3.fromRGB(180, 180, 180) or Color3.fromRGB(70, 70, 70))
@@ -632,7 +574,6 @@ function Module:Toggle(multiple)
     self:SetState(not self.Enabled, multiple)
 end
 
--- アコーディオンプランの横幅を100%追従に変更
 function Module:ToggleOptions()
     self.OptionsExpanded = not self.OptionsExpanded
     self.OptionsFrame.Visible = true
@@ -647,7 +588,6 @@ function Module:ToggleOptions()
     end
 end
 
--- アコーディオンプランの横幅を100%追従に変更
 function Module:_refreshOptionsHeight()
     if self.OptionsExpanded then
         task.defer(function()
@@ -704,7 +644,6 @@ function Module:Color(hue, sat, val, rainbowcheck)
     end
 end
 
--- Late-bind global components (non-overwriting)
 task.spawn(function()
     local comps = components or (shared.vape and shared.vape.Components)
     if comps then
