@@ -98,19 +98,20 @@ LoadingScreen.show(ScreenGui, assets, function()
 
     -- 🌟 【修正】空のモック関数「UpdateTextGUI」を追加し、
     -- モジュール切り替え時に発生していた missing method クラッシュを解決します。
+  -- src/Main.lua inside LoadingScreen.show
     local Notification = require("gui.Notification")
     _G.mainapi = {
         CreateNotification = function(self, title, text, duration, notifType)
             Notification.create(ScreenGui, title, text, duration, notifType)
         end,
         UpdateTextGUI = function(self, ...)
-            -- 🌟 【追加】クラッシュを完全に防止するための空の関数
+            -- Empty method to prevent missing method crashes
         end,
-        -- 各パーツ（ColorPickerなど）のエラーを防ぐための共通テーブルを定義
         RainbowTable = {},
-        GUIColor = { Hue = 0.44, Sat = 1, Value = 1 }
+        -- Option A: Classic Vape Teal Green applied
+        GUIColor = { Hue = 0.48, Sat = 0.76, Value = 0.76 }
     }
-    shared.vape = _G.mainapi -- 互換性確保用
+    shared.vape = _G.mainapi -- For compatibility
 
 
 
