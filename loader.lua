@@ -6,7 +6,6 @@ local moduleCache = {}
 -- Overwrite global require to dynamically fetch and run modules via HTTP
 local oldRequire = require
 getgenv().require = function(modulePath)
-    -- Convert dot notation (e.g., gui.components.Button) to path slashes
     local formattedPath = modulePath:gsub("%.", "/")
 
     if moduleCache[formattedPath] then
@@ -19,7 +18,6 @@ getgenv().require = function(modulePath)
     end)
 
     if not success or not response then
-        -- Fallback to standard require for internal Roblox ModuleScripts
         if oldRequire then
             local ok, res = pcall(oldRequire, modulePath)
             if ok then
@@ -29,7 +27,8 @@ getgenv().require = function(modulePath)
         error("Failed to dynamically load module: " .. modulePath .. " (URL: " .. fileUrl .. ")")
     end
 
-    local chunk, err = loadstring(response)
+    -- Added "@" .. formattedPath as the second argument to show exact file paths in stack traces
+    local chunk, err = loadstring(response, "@src/" .. formattedPath .. ".lua")
     if not chunk then
         error("Syntax error in module " .. modulePath .. ": " .. tostring(err))
     end
