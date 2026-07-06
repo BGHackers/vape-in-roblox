@@ -172,12 +172,22 @@ LoadingScreen.show(ScreenGui, assets, function()
     )
 
     -- モジュールのロード
+   -- Load modules dynamically by requiring the file paths
     local function loadModules(window, list)
         if not list then return end
-        for _, mod in ipairs(list) do
-            local moduleObj = window:CreateModule(mod.Name, mod.Description, mod.Callback)
-            if type(mod.Init) == "function" then
-                mod.Init(moduleObj)
+        for _, modPath in ipairs(list) do
+            -- Dynamically load the module table via our custom require
+            local success, mod = pcall(require, modPath)
+            
+            if success and type(mod) == "table" then
+                -- Safely create the module UI using loaded properties
+                local moduleObj = window:CreateModule(mod.Name, mod.Description, mod.Callback)
+                if type(mod.Init) == "function" then
+                    mod.Init(moduleObj)
+                end
+            else
+                -- Output a warning if the module failed to load or compile
+                warn("Failed to load module at path: " .. tostring(modPath) .. " | Error: " .. tostring(mod))
             end
         end
     end
