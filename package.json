@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "npx luabundler bundle ./src/Main.lua -p ./src/?.lua -p ./src/gui/?.lua -p ./src/gui/components/?.lua -p ./src/utils/?.lua -o ./dist/bundle.lua",
-    "watch": "node watch.js"
+    "watch": "node watch.js",
+    "watch-push": "node auto-push.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,7 @@
     "luabundler": "^1.2.3"
   },
   "devDependencies": {
-    "chokidar": "^5.0.0"
+    "chokidar": "^5.0.0",
+    "luaparse": "^0.3.1"
   }
 }

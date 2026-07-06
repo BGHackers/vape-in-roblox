@@ -1,3 +1,5 @@
+-- src/utils/AssetLoader.lua
+
 local Players = game:GetService("Players")
 local isfolder = isfolder or function(path)
     local success, _ = pcall(listfiles, path)
@@ -29,9 +31,10 @@ end
 if delfile then
     local oldRootFiles = {
         "vape_logo_main.png", "vape_v4_badge.png", "vape_gui_settings.png",
-        "vape_combat_icon.png", "vape_render_icon.png", "vape_utility_icon.png",
-        "vape_world_icon.png", "vape_inventory_icon.png", "vape_minigames_icon.png",
-        "vape_friends_icon.png", "vape_profiles_icon.png", "vape_blur_shadow.png"
+        "vape_combat_icon.png", "vape_blatant_icon.png", "vape_render_icon.png",
+        "vape_utility_icon.png", "vape_world_icon.png", "vape_inventory_icon.png",
+        "vape_minigames_icon.png", "vape_friends_icon.png", "vape_profiles_icon.png", 
+        "vape_blur_shadow.png", "vape_bind_icon.png"
     }
     for _, file in ipairs(oldRootFiles) do
         pcall(delfile, file)
@@ -53,18 +56,61 @@ local function loadOnlineImage(url, localName)
     end
     return nil
 end
+
 local assets = {}
-assets.vapeLogo = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/textvape.png", folderName .. "/assets/vape_logo_main.png")
-assets.v4Logo = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/textv4.png", folderName .. "/assets/vape_v4_badge.png")
-assets.guiSettings = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/guisettings.png", folderName .. "/assets/vape_gui_settings.png")
-assets.combat = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/combaticon.png", folderName .. "/assets/vape_combat_icon.png")
-assets.render = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/rendertab.png", folderName .. "/assets/vape_render_icon.png")
-assets.utility = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/utilityicon.png", folderName .. "/assets/vape_utility_icon.png")
-assets.world = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/worldicon.png", folderName .. "/assets/vape_world_icon.png")
-assets.inventory = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/inventoryicon.png", folderName .. "/assets/vape_inventory_icon.png")
-assets.minigames = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/miniicon.png", folderName .. "/assets/vape_minigames_icon.png")
-assets.friends = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/friendstab.png", folderName .. "/assets/vape_friends_icon.png")
-assets.profiles = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/profilesicon.png", folderName .. "/assets/vape_profiles_icon.png")
-assets.blurShadow = loadOnlineImage("https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/blur.png", folderName .. "/assets/vape_blur_shadow.png")
-assets.arrow = "rbxassetid://10709791437"
+
+-- 🌟 進捗をローディング画面に伝えるための BindableEvent を定義
+local progressEvent = Instance.new("BindableEvent")
+assets.OnProgress = progressEvent.Event
+
+-- ダウンロード対象のURLとファイル名、および表示用のラベル
+local downloadList = {
+    -- 保存するファイル名「ape_logo_main.png」と、進捗ラベル「Ape Main Logo」
+    {key = "vapeLogo", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/aa.png", file = "ape_logo_main.png", label = "Ape Main Logo"},
+    {key = "v4Logo", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/textv4.png", file = "vape_v4_badge.png", label = "V4 Badge"},
+    {key = "guiSettings", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/guisettings.png", file = "vape_gui_settings.png", label = "Settings Gear"},
+    {key = "combat", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/combaticon.png", file = "vape_combat_icon.png", label = "Combat Icon"},
+    {key = "blatant", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/blatanticon.png", file = "vape_blatant_icon.png", label = "Blatant Icon"},
+    {key = "render", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/rendertab.png", file = "vape_render_icon.png", label = "Render Icon"},
+    {key = "utility", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/utilityicon.png", file = "vape_utility_icon.png", label = "Utility Icon"},
+    {key = "world", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/worldicon.png", file = "vape_world_icon.png", label = "World Icon"},
+    {key = "inventory", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/inventoryicon.png", file = "vape_inventory_icon.png", label = "Inventory Icon"},
+    {key = "minigames", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/miniicon.png", file = "vape_minigames_icon.png", label = "Minigames Icon"},
+    {key = "friends", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/friendstab.png", file = "vape_friends_icon.png", label = "Friends Icon"},
+    {key = "profiles", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/profilesicon.png", file = "vape_profiles_icon.png", label = "Profiles Icon"},
+    {key = "blurShadow", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/blur.png", file = "vape_blur_shadow.png", label = "Blur Shadow Layer"},
+    {key = "bind", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/bind.png", file = "vape_bind_icon.png", label = "Keybind Icon"},
+    {key = "guislider", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/guislider.png", file = "vape_guislider.png", label = "GUI Slider"},
+    {key = "guisliderrain", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/guisliderrain.png", file = "vape_guisliderrain.png", label = "Rainbow Slider"},
+    {key = "warning", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/warning.png", file = "warning.png", label = "Warning Icon"},
+    {key = "blurnotif", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/blurnotif.png", file = "blurnotif.png", label = "Notification Blur"},
+    -- 🌟 【追加】新規通知関連アセット 3点
+    {key = "alert", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/alert.png", file = "alert.png", label = "Alert Icon"},
+    {key = "info", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/info.png", file = "info.png", label = "Info Icon"},
+    {key = "notification", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/notification.png", file = "notification.png", label = "Notification Background"}
+}
+
+-- 🌟 この関数を呼び出すことで、実際のアセット読み込み（ダウンロード）を開始します
+-- 🌟 アセットのロード処理（遅延時間を調整）
+function assets.loadAll()
+    local total = #downloadList
+    for i, item in ipairs(downloadList) do
+        -- 進捗イベントを発火
+        progressEvent:Fire(i / total, "Loading " .. item.label .. "...")
+        
+        -- アセットをダウンロード＆登録
+        assets[item.key] = loadOnlineImage(item.url, folderName .. "/assets/" .. item.file)
+        
+        -- 🌟 演出を綺麗に見せるため、あえて 0.08 秒の遅延を追加
+        -- これにより、ゲージがカクつかずスムーズになめらかに伸びていきます
+        task.wait(0.08) 
+    end
+    
+    -- 固定アセットの追加
+    assets.arrow = "rbxassetid://10709791437"
+    
+    -- ロード完了を通知
+    progressEvent:Fire(1.0, "Assets successfully loaded!")
+end
+
 return assets

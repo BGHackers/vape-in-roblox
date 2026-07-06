@@ -1,0 +1,35 @@
+name: Build and Deploy Lua Bundle
+
+on:
+  push:
+    branches:
+      - main  # mainブランチにプッシュされたときに実行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. コードの取得
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Node.js 環境のセットアップ
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-size: 20
+
+    # 3. ビルドツールのインストールと実行
+    - name: Install dependencies and build
+      run: |
+        npm install
+        # 例として luabundler もしくは他コンパイラを実行
+        npx luabundler bundle ./src/Main.lua -o ./dist/bundle.lua
+
+    # 4. ビルドされた bundle.lua を gh-pages または特定のデプロイブランチに自動コミット
+    - name: Deploy to GitHub Pages or Build Branch
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        folder: dist      # デプロイしたいファイルが存在するディレクトリ
+        branch: gh-pages  # 配信用のブランチ（ここからRawURLを取得可能にする）
