@@ -124,7 +124,7 @@ Luau (Roblox Lua) 環境向けの、非同期・動的モジュールロード (
 ## フォルダ構成 (Repository Structure)
 
 リポジトリは以下のようにモジュール化されて管理されます。
-
+```text
 ├── .github/
 │   └── workflows/          # 自動ビルドや管理用のCI/CD設定（オプション）
 ├── src/
@@ -138,6 +138,7 @@ Luau (Roblox Lua) 環境向けの、非同期・動的モジュールロード (
 │   └── Main.lua            # ローダー（エントリポイント）
 ├── auto-push.js            # 自動同期ツール（保存時にGitHubへ自動送信）
 └── package.json            # 開発パッケージ設定
+```
 
 ## 実行方法 (How to Run / Loader Bootstrap)
 ゲーム内またはエグゼキューター等から、以下のローダースクリプトを実行してロードします。
