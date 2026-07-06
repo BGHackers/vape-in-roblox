@@ -1,13 +1,27 @@
 const chokidar = require('chokidar');
 const { execSync } = require('child_process');
 
-console.log('👀 src/ フォルダの監視を開始しました。');
-console.log('💡 保存すると5秒後に自動でGitHubへ同期（プッシュ）します。');
+console.log('👀 プロジェクト全体の監視を開始しました。');
+console.log('💡 保存すると5秒後に自動でGitHubへ同期（プッシュ）します。 (Ctrl+C で停止)');
 
 let pushTimeout = null;
 
-chokidar.watch('./src', { ignoreInitial: true }).on('all', (event, filePath) => {
-    if (filePath.includes('base.lua') || filePath.includes('.git')) return;
+// ルートディレクトリ「.」を監視対象にします
+chokidar.watch('.', {
+    // 監視から除外するフォルダやファイルをここに指定します
+    ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/base.lua',
+        '**/bundle.lua',
+        '**/package-lock.json',
+        '**/auto-push.js', // 自身への書き込みによる無限ループ防止
+        '**/watch.js'
+    ],
+    ignoreInitial: true
+}).on('all', (event, filePath) => {
+    // 予期せぬシステムファイルなどの変更を無視するセーフティ
+    if (filePath.includes('.git') || filePath.includes('base.lua')) return;
 
     console.log(`📝 変更を検出: ${filePath}`);
 
@@ -16,20 +30,19 @@ chokidar.watch('./src', { ignoreInitial: true }).on('all', (event, filePath) => 
     pushTimeout = setTimeout(() => {
         // 先に base.lua を最新状態に同期させてからプッシュする
         try {
-            // ① base.lua の再生成
             execSync('node -e "require(\'./watch.js\').generateGameBaseFiles()"', { stdio: 'ignore' });
         } catch(e) {
-            // watch.jsが別の記述になっている場合は、手動でgenerateGameBaseFilesを実行する仕組みに合わせる
+            // watch.jsにエラーがある、または存在しない場合はスキップします
         }
 
         console.log('\n📤 GitHubへ送信中...');
         try {
             execSync('git add .', { stdio: 'inherit' });
-            execSync('git commit -m "Sync source files"', { stdio: 'inherit' });
+            execSync('git commit -m "Sync source files and configs"', { stdio: 'inherit' });
             execSync('git push origin main', { stdio: 'inherit' });
             console.log('✅ 送信完了！最新のコードが即座に反映されました。\n');
         } catch (error) {
-            console.error('❌ 送信失敗\n');
+            console.error('❌ 送信失敗（コンフリクトまたはネット接続を確認してください）\n');
         }
     }, 5000);
 });
