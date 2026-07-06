@@ -37,7 +37,7 @@ The project is modularly structured as follows:
 └── package.json            # Node.js project settings
 
 
-# How to Run (Loader Bootstrap)
+## How to Run (Loader Bootstrap)
 
 Execute the following loader bootstrap script inside your execution environment.
 # Important: Please change YOUR_USERNAME and YOUR_REPO_NAME to your actual GitHub account and repository names before running.
@@ -77,23 +77,23 @@ for category, modules in pairs(base) do
 end
 ```
 
-# Developer Setup & Workflow
+## Developer Setup & Workflow
 Follow these steps to set up the local file watcher that automatically pushes your code changes to GitHub.
 
-# 1. Install Dependencies
+## 1. Install Dependencies
 Run the following command in your project's root directory:
 ```bash
 npm install
 ```
 
-# 3. Run the Auto-Sync Watcher
+## 3. Run the Auto-Sync Watcher
 Start the file watcher. It will monitor your ./src folder and automatically run git push if no modifications are detected for 5 seconds after your last save.
 
 ```bash
 npm run watch-push
 ```
 
-# License
+## License
 This project is licensed under the MIT License.
 
 
@@ -178,14 +178,16 @@ for category, modules in pairs(base) do
 end
 ```
 
-# 開発環境セットアップ (Developer Setup & Workflow)
+## 開発環境セットアップ (Developer Setup & Workflow)
 コードを編集してGitHubに自動的に反映させるためのローカル開発手順です。
 1. ## 依存関係のインストール
 プロジェクトのルートディレクトリで以下を実行します。
+
 ```bash
 npm install
 ```
-# 2. 自動同期の起動
+
+## 2. 自動同期の起動
 ファイル変更を検知して自動的にGitHubへプッシュする監視スクリプトを起動します（保存してから5秒間次の変更がなければ、自動的に git push が実行されます）。
 ```bash
 npm run watch-push
