@@ -109,8 +109,8 @@ LoadingScreen.show(ScreenGui, assets, function()
         end,
         RainbowTable = {},
         -- Option A: Classic Vape Teal Green applied
--- Dark forest green (Pure green base with low brightness)
-    GUIColor = { Hue = 0.35, Sat = 0.85, Value = 0.55 }
+-- Exact color representation matched from the Scaffold screenshot
+    GUIColor = { Hue = 0.44, Sat = 0.88, Value = 0.52 }
     }
     shared.vape = _G.mainapi -- For compatibility
 
