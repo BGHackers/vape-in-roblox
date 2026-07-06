@@ -3,7 +3,7 @@ local HttpService = game:GetService("HttpService")
 local BaseUrl = "https://raw.githubusercontent.com/BGHackers/vape-in-roblox/main/src/"
 local moduleCache = {}
 
--- Overwrite global require to dynamically fetch and run modules via HTTP
+-- Overwrite global require to dynamically fetch and run modules via HTTP with cache busting
 local oldRequire = require
 getgenv().require = function(modulePath)
     local formattedPath = modulePath:gsub("%.", "/")
@@ -12,7 +12,8 @@ getgenv().require = function(modulePath)
         return moduleCache[formattedPath]
     end
 
-    local fileUrl = BaseUrl .. formattedPath .. ".lua"
+    -- Added timestamp parameter (?t=os.time()) to bypass GitHub Raw CDN caching
+    local fileUrl = BaseUrl .. formattedPath .. ".lua?t=" .. tostring(os.time())
     local success, response = pcall(function()
         return game:HttpGet(fileUrl)
     end)
@@ -27,7 +28,6 @@ getgenv().require = function(modulePath)
         error("Failed to dynamically load module: " .. modulePath .. " (URL: " .. fileUrl .. ")")
     end
 
-    -- Added "@" .. formattedPath as the second argument to show exact file paths in stack traces
     local chunk, err = loadstring(response, "@src/" .. formattedPath .. ".lua")
     if not chunk then
         error("Syntax error in module " .. modulePath .. ": " .. tostring(err))
@@ -39,7 +39,7 @@ getgenv().require = function(modulePath)
 end
 
 -- Run the core framework Main.lua
-print("Initializing Vape core framework...")
+print("Initializing Vape core framework with cache busting...")
 
 local success, err = pcall(function()
     return require("Main")
