@@ -21,7 +21,7 @@ By restructuring the system, this repository aims to keep the legacy alive while
 ## Repository Structure
 
 The project is modularly structured as follows:
-
+```text
 ├── .github/
 │   └── workflows/          # Optional CI/CD configurations for automated builds
 ├── src/
@@ -35,7 +35,7 @@ The project is modularly structured as follows:
 │   └── Main.lua            # Main entry point (Loader Bootstrap)
 ├── auto-push.js            # Auto-sync tool: Developer sync utility (Pushes to Git on save)
 └── package.json            # Node.js project settings
-
+```
 
 ## How to Run (Loader Bootstrap)
 
