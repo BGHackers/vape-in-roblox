@@ -23,28 +23,25 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     self.Collapsed = false
     self.Assets = assets
 
--- Create Minigames window
-    local MinigamesWindow = ModuleWindow.new(
-        ScreenGui, "Minigames",
-        UDim2.new(0, sidebarWidth, 0, 300),
-        UDim2.new(0, minigamesX, 0.2, 0),
-        assets.minigames or assets.Minigames, assets
-    )
+    -- Safely find the window icon ImageLabel inside header
+    local windowIcon = header:FindFirstChildOfClass("ImageLabel")
+    if windowIcon then
+        -- Only override size and position if the icon actually exists (prevents crashes)
+        local iconSizeX = 15
+        local iconSizeY = 15
+        if name == "Minigames" then
+            iconSizeX, iconSizeY = 19, 19
+        end
 
-    -- [Ported directly from Sidebar.lua]
-    local name = "Minigames"
-    local iconSizeX = 15
-    local iconSizeY = 15
-    if name == "Minigames" then
-        iconSizeX, iconSizeY = 19, 19
+        windowIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
+        -- Maintain original vertical alignment (AnchorPoint.Y = 0.5) and adjust horizontal offset
+        windowIcon.Position = UDim2.new(
+            0, 15 - (iconSizeX - 15) / 2, 
+            windowIcon.Position.Y.Scale, 
+            windowIcon.Position.Y.Offset
+        )
     end
 
-    -- Find the window icon ImageLabel inside Minigames header and apply the exact calculations
-    local minigamesIcon = MinigamesWindow.Header:FindFirstChildOfClass("ImageLabel")
-    if minigamesIcon then
-        minigamesIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
-        minigamesIcon.Position = UDim2.new(0, 15 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)
-    end
     WindowFactory.setupDraggable(container, mainFrame)
 
     header.BackgroundTransparency = 1
