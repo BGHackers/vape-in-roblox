@@ -13,6 +13,7 @@ local TWEEN_INFO = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirect
 function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     local self = setmetatable({}, ModuleWindow)
 
+    -- WindowFactory will handle all icon sizes and positions correctly based on window name
     local container, mainFrame, header = WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAssetId)
     
     self.Container = container
@@ -22,21 +23,6 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     self.Modules = {}
     self.Collapsed = false
     self.Assets = assets
-
-    -- Safely find the window icon ImageLabel inside header
-    local windowIcon = header:FindFirstChildOfClass("ImageLabel")
-    if windowIcon then
-        -- Standard icon size is 16x16 in WindowFactory
-        local iconSizeX = 16
-        local iconSizeY = 16
-        if name == "Minigames" then
-            iconSizeX, iconSizeY = 19, 19
-        end
-
-        windowIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
-        -- Flawless centering based on WindowFactory's default 16x16 size and 15px padding
-        windowIcon.Position = UDim2.new(0, 15 - (iconSizeX - 16) / 2, 0.5, -iconSizeY / 2)
-    end
 
     WindowFactory.setupDraggable(container, mainFrame)
 
