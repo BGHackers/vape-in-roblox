@@ -23,24 +23,19 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     self.Collapsed = false
     self.Assets = assets
 
--- [Updated] Dynamically read original position to prevent clipping at the window border
+-- [Ported directly from Sidebar.lua]
     local iconSizeX = 15
     local iconSizeY = 15
     if name == "Minigames" then
         iconSizeX, iconSizeY = 19, 19
     end
 
-    -- Find the window icon ImageLabel and override its size and position dynamically
+    -- Apply the exact same sizing and positioning logic from Sidebar.lua
     local windowIcon = header:FindFirstChildOfClass("ImageLabel")
     if windowIcon then
-        -- Read the true original X position defined by WindowFactory
-        local originalX = windowIcon.Position.X.Offset or 12
-        
         windowIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
-        -- Maintain the exact center point of the original icon
-        windowIcon.Position = UDim2.new(0, originalX - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)
+        windowIcon.Position = UDim2.new(0, 15 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)
     end
-
     WindowFactory.setupDraggable(container, mainFrame)
 
     header.BackgroundTransparency = 1
