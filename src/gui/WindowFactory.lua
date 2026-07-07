@@ -1,10 +1,9 @@
 -- src/gui/WindowFactory.lua
-
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local WindowFactory = {}
 
--- ドラッグ機能をセットアップする関数
+-- Set up dragging functionality
 function WindowFactory.setupDraggable(frame, handle)
     local dragging, dragInput, dragStart, startPos
     
@@ -37,9 +36,8 @@ function WindowFactory.setupDraggable(frame, handle)
     end)
 end
 
--- ベースとなるウィンドウを生成する関数
+-- Create the base window container, main frame, and header
 function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAssetId)
-    -- 外枠
     local container = Instance.new("Frame")
     container.Name = name .. "Container"
     container.Size = size
@@ -52,7 +50,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
 
     container:SetAttribute("BasePosition", position)
 
-    -- 影
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
     shadow.Size = UDim2.new(1, 89, 1, 52)
@@ -66,7 +63,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     shadow.ZIndex = 1
     shadow.Parent = container
 
-    -- メインの枠
     local mainFrame = Instance.new("CanvasGroup")
     mainFrame.Name = "MainFrame"
     mainFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -75,7 +71,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     mainFrame.ZIndex = 2
     mainFrame.Parent = container
 
-    -- 🌟 【新規追加】すべてのウィンドウ背景に背景ブラー（addBlur）を安全に適用
     local addBlurFunc = addBlur or addblur or (shared.vape and shared.vape.addBlur) or (shared.vape and shared.vape.addblur)
     if addBlurFunc then
         pcall(addBlurFunc, mainFrame)
@@ -91,7 +86,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = mainFrame
 
-    -- ヘッダー
     local header = Instance.new("Frame")
     header.Name = "Header"
     header.Size = UDim2.new(1, 0, 0, 38)
@@ -100,7 +94,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     header.ZIndex = 3
     header.Parent = mainFrame
 
-    -- タイトルと任意アイコン
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.BackgroundTransparency = 1
@@ -112,10 +105,18 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     titleLabel.Parent = header
 
     if iconAssetId then
+        -- 🌟 Determine icon size based on the window name (Standard is 16x16, Minigames is 19x19)
+        local iconSizeX = 16
+        local iconSizeY = 16
+        if name == "Minigames" then
+            iconSizeX, iconSizeY = 19, 19
+        end
+
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
-        icon.Size = UDim2.fromOffset(16, 16)
-        icon.Position = UDim2.new(0, 15, 0.5, -8)
+        icon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
+        -- Precise horizontal and vertical offset calculations to prevent border clipping
+        icon.Position = UDim2.new(0, 15 - (iconSizeX - 16) / 2, 0.5, -iconSizeY / 2)
         icon.BackgroundTransparency = 1
         icon.Image = iconAssetId
         icon.ZIndex = 4
@@ -133,7 +134,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     return container, mainFrame, header
 end
 
--- ウィンドウのリストフレーム内にモジュールを追加する関数
 function WindowFactory.addModule(listFrame, name, desc)
     local ModuleBtn = Instance.new("TextButton")
     ModuleBtn.Name = name .. "Module"
@@ -158,7 +158,6 @@ function WindowFactory.addModule(listFrame, name, desc)
     HoverCorner.CornerRadius = UDim.new(0, 4)
     HoverCorner.Parent = HoverBg
 
-    -- モジュール名
     local Label = Instance.new("TextLabel")
     Label.Name = "Label"
     Label.Size = UDim2.new(1, -50, 1, 0)
@@ -172,7 +171,6 @@ function WindowFactory.addModule(listFrame, name, desc)
     Label.ZIndex = 3
     Label.Parent = ModuleBtn
 
-    -- 右端の「...」設定ボタン
     local OptionBtn = Instance.new("TextButton")
     OptionBtn.Name = "OptionBtn"
     OptionBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -187,7 +185,6 @@ function WindowFactory.addModule(listFrame, name, desc)
 
     local enabled = false
 
-    -- 有効・無効を切り替えるトグルアニメーション
     local function toggle(state)
         enabled = state
         local targetColor = enabled and Color3.fromRGB(30, 180, 130) or Color3.fromRGB(150, 150, 150)
