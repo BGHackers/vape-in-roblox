@@ -1,14 +1,15 @@
+-- src/gui/ModuleWindow.lua
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local WindowFactory = require("gui.WindowFactory")
-local Module = require("gui.components.Module") -- 🌟 ToggleからModuleに変更
+local Module = require("gui.components.Module")
 
 local ModuleWindow = {}
 ModuleWindow.__index = ModuleWindow
 
 local TWEEN_INFO = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
--- 【コンストラクタ】assets を追加受け取り
+-- Constructor
 function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     local self = setmetatable({}, ModuleWindow)
 
@@ -20,20 +21,31 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     self.Visible = false
     self.Modules = {}
     self.Collapsed = false
-    self.Assets = assets -- アセットリストを保持
+    self.Assets = assets
+
+    -- [Added] Custom icon size logic specifically for the Minigames window
+    local iconSizeX = 15
+    local iconSizeY = 15
+    if name == "Minigames" then
+        iconSizeX, iconSizeY = 19, 19
+    end
+
+    -- Find the window icon ImageLabel inside header and override its size
+    local windowIcon = header:FindFirstChildOfClass("ImageLabel")
+    if windowIcon then
+        windowIcon.Size = UDim2.fromOffset(iconSizeX, iconSizeY)
+    end
 
     WindowFactory.setupDraggable(container, mainFrame)
 
     header.BackgroundTransparency = 1
 
-    -- ヘッダータイトルサイズを18pxに拡大
     local title = header:FindFirstChild("Title")
     if title then
         title.Font = Enum.Font.SourceSansSemibold
         title.TextSize = 18
     end
 
-    -- 右上折りたたみボタン（Lucide chevron-down）
     local collapseBtn = Instance.new("ImageButton")
     collapseBtn.Name = "CollapseBtn"
     collapseBtn.Size = UDim2.fromOffset(12, 12)
@@ -45,13 +57,11 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     collapseBtn.ZIndex = 4
     collapseBtn.Parent = header
 
-    -- レイアウト用の定数
     local HEADER_HEIGHT = 38
-    local MAX_WINDOW_HEIGHT = size.Y.Offset -- コンストラクタで指定された高さを最大サイズとして使用
+    local MAX_WINDOW_HEIGHT = size.Y.Offset
 
     local listFrame = Instance.new("ScrollingFrame")
     listFrame.Name = "ListFrame"
-    -- 初期サイズは最大高さからヘッダー分を引いたサイズに設定
     listFrame.Size = UDim2.new(1, 0, 0, MAX_WINDOW_HEIGHT - HEADER_HEIGHT)
     listFrame.Position = UDim2.new(0, 0, 0, HEADER_HEIGHT)
     listFrame.BackgroundTransparency = 1
@@ -65,27 +75,22 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 1) -- 🌟 1pxのすきまに設定
+    listLayout.Padding = UDim.new(0, 1)
     listLayout.Parent = listFrame
 
-    -- ウィンドウ全体の高さとスクロールバーを動的に自動調整する関数
     local function updateWindowSize()
         local contentHeight = listLayout.AbsoluteContentSize.Y
-        -- 無駄な隙間をなくすため +10 の余白を削除（必要に応じて調整してください）
         listFrame.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
 
         if not self.Collapsed then
             local maxAllowedContentHeight = MAX_WINDOW_HEIGHT - HEADER_HEIGHT
-            -- 実コンテンツ高、または最大可能高のどちらか小さい方に合わせる
             local targetContentHeight = math.min(contentHeight, maxAllowedContentHeight)
             local targetHeight = HEADER_HEIGHT + targetContentHeight
 
-            -- 中身が最大高さを超える場合のみスクロールを有効にし、スクロールバーを表示
             local needsScrolling = contentHeight > maxAllowedContentHeight
             listFrame.ScrollingEnabled = needsScrolling
             listFrame.ScrollBarImageTransparency = needsScrolling and 0 or 1
 
-            -- リストとウィンドウのサイズをフィットさせる
             listFrame.Size = UDim2.new(1, 0, 0, targetContentHeight)
             TweenService:Create(container, TWEEN_INFO, {
                 Size = UDim2.new(size.X.Scale, size.X.Offset, size.Y.Scale, targetHeight)
@@ -104,7 +109,6 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
         local maxAllowedContentHeight = MAX_WINDOW_HEIGHT - HEADER_HEIGHT
         local targetContentHeight = math.min(contentHeight, maxAllowedContentHeight)
         
-        -- 折りたたむ時はヘッダーの高さのみ、開く時はコンテンツに合わせた高さに設定
         local targetHeight = self.Collapsed and HEADER_HEIGHT or (HEADER_HEIGHT + targetContentHeight)
         local targetRotation = self.Collapsed and 0 or 180
         
@@ -167,13 +171,12 @@ function ModuleWindow:Animate(show)
     end
 end
 
--- Moduleコンポーネントを生成・バインド（Module.new を呼び出すように変更）
 function ModuleWindow:CreateModule(name, desc, callback)
     local moduleObj = Module.new(self.ListFrame, name, callback, self.Assets)
     
     table.insert(self.Modules, moduleObj)
     
-    return moduleObj -- 🌟 インスタンス自体をそのまま返します
+    return moduleObj
 end
 
 return ModuleWindow
