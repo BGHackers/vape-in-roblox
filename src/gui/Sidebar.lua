@@ -230,12 +230,12 @@ local VapeLogo = Instance.new("ImageLabel")
         HoverCorner.CornerRadius = UDim.new(0, 5)
         HoverCorner.Parent = TabHoverBg
 
+ -- Inside src/gui/Sidebar.lua -> createTab
         local iconSizeX = 15
         local iconSizeY = 15
         if name == "Minigames" then
-            iconSizeX, iconSizeY = 19, 19
+            iconSizeX, iconSizeY = 19, 12 -- Standardize to 19x12
         end
-
         local TabIcon = Instance.new("ImageLabel")
         TabIcon.Name = "TabIcon"
         TabIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
