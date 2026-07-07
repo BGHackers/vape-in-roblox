@@ -26,20 +26,16 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
     -- Safely find the window icon ImageLabel inside header
     local windowIcon = header:FindFirstChildOfClass("ImageLabel")
     if windowIcon then
-        -- Only override size and position if the icon actually exists (prevents crashes)
-        local iconSizeX = 15
-        local iconSizeY = 15
+        -- Standard icon size is 16x16 in WindowFactory
+        local iconSizeX = 16
+        local iconSizeY = 16
         if name == "Minigames" then
             iconSizeX, iconSizeY = 19, 19
         end
 
         windowIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
-        -- Maintain original vertical alignment (AnchorPoint.Y = 0.5) and adjust horizontal offset
-        windowIcon.Position = UDim2.new(
-            0, 15 - (iconSizeX - 15) / 2, 
-            windowIcon.Position.Y.Scale, 
-            windowIcon.Position.Y.Offset
-        )
+        -- Flawless centering based on WindowFactory's default 16x16 size and 15px padding
+        windowIcon.Position = UDim2.new(0, 15 - (iconSizeX - 16) / 2, 0.5, -iconSizeY / 2)
     end
 
     WindowFactory.setupDraggable(container, mainFrame)
