@@ -12,36 +12,30 @@ local places = {
 -- 🌟 universal フォルダも作成していない場合は、一旦コメントアウトしてください
 local universal = require("games.universal.base") 
 
--- 現在のプレイスIDに合致する「マージ済みの」モジュールリストを返す関数
+-- src/games/GameRegistry.lua
 function GameRegistry.getModules()
     local placeIdStr = tostring(game.PlaceId)
-    local placeSpecific = places[placeIdStr] or {
-        ["combat"] = {},
-        ["blatant"] = {},
-        ["Render"] = {},
-        ["Utility"] = {},
-        ["World"] = {},
-        ["Inventory"] = {},
-        ["Minigames"] = {}
-    }
-
+    local placeSpecific = places[placeIdStr]
+    
     local merged = {}
     local categories = {"combat", "blatant", "Render", "Utility", "World", "Inventory", "Minigames"}
 
     for _, category in ipairs(categories) do
         merged[category] = {}
         
-        -- ユニバーサルモジュールを合流
-        if universal and universal[category] then
-            for _, mod in ipairs(universal[category]) do
-                table.insert(merged[category], mod)
+        if placeSpecific then
+            -- If game-specific modules exist, load ONLY game-specific modules
+            if placeSpecific[category] then
+                for _, mod in ipairs(placeSpecific[category]) do
+                    table.insert(merged[category], mod)
+                end
             end
-        end
-        
-        -- プレイス固有モジュールを合流
-        if placeSpecific[category] then
-            for _, mod in ipairs(placeSpecific[category]) do
-                table.insert(merged[category], mod)
+        else
+            -- If no game-specific modules exist, load universal modules as a fallback
+            if universal and universal[category] then
+                for _, mod in ipairs(universal[category]) do
+                    table.insert(merged[category], mod)
+                end
             end
         end
     end
