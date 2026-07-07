@@ -30,10 +30,12 @@ function ModuleWindow.new(ScreenGui, name, size, position, iconAssetId, assets)
         iconSizeX, iconSizeY = 19, 19
     end
 
-    -- Find the window icon ImageLabel inside header and override its size
+    -- Find the window icon ImageLabel inside header and override both Size and Position
+    -- [Ported formula from Sidebar.lua to ensure flawless alignment]
     local windowIcon = header:FindFirstChildOfClass("ImageLabel")
     if windowIcon then
-        windowIcon.Size = UDim2.fromOffset(iconSizeX, iconSizeY)
+        windowIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
+        windowIcon.Position = UDim2.new(0, 15 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)
     end
 
     WindowFactory.setupDraggable(container, mainFrame)
