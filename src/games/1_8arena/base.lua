@@ -3,6 +3,7 @@ return {
     ["combat"] = {
     },
     ["blatant"] = {
+        "games/1_8arena/modules/blatant/HitBoxes",
     },
     ["Render"] = {
     },
