@@ -166,7 +166,6 @@ LoadingScreen.show(ScreenGui, assets, function()
         UDim2.new(0, inventoryX, 0.2, 0),
         assets.inventory or assets.Inventory or assets.inventry or assets.Inventry, assets
     )
-
 -- Create Minigames window
     local MinigamesWindow = ModuleWindow.new(
         ScreenGui, "Minigames",
@@ -175,18 +174,19 @@ LoadingScreen.show(ScreenGui, assets, function()
         assets.minigames or assets.Minigames, assets
     )
 
-    -- [Ported directly from Sidebar.lua without any coordinate modifications]
+    -- [Copied from original Vape core settings: Size 19x12]
     local name = "Minigames"
-    local iconSizeX = 15
-    local iconSizeY = 15
+    local iconSizeX = 16
+    local iconSizeY = 16
     if name == "Minigames" then
-        iconSizeX, iconSizeY = 19, 19
+        iconSizeX, iconSizeY = 19, 12 -- Exact original size
     end
 
     local minigamesIcon = MinigamesWindow.Header:FindFirstChildOfClass("ImageLabel")
     if minigamesIcon then
         minigamesIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
-        minigamesIcon.Position = UDim2.new(0, 15 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)
+        -- Centers horizontally at 13.5px and vertically at -6px
+        minigamesIcon.Position = UDim2.new(0, 15 - (iconSizeX - 16) / 2, 0.5, -iconSizeY / 2)
     end
 
     -- モジュールのロード
