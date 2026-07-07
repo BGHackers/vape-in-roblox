@@ -167,12 +167,27 @@ LoadingScreen.show(ScreenGui, assets, function()
         assets.inventory or assets.Inventory or assets.inventry or assets.Inventry, assets
     )
 
+-- Create Minigames window
     local MinigamesWindow = ModuleWindow.new(
         ScreenGui, "Minigames",
         UDim2.new(0, sidebarWidth, 0, 300),
         UDim2.new(0, minigamesX, 0.2, 0),
         assets.minigames or assets.Minigames, assets
     )
+
+    -- [Ported directly from Sidebar.lua without any coordinate modifications]
+    local name = "Minigames"
+    local iconSizeX = 15
+    local iconSizeY = 15
+    if name == "Minigames" then
+        iconSizeX, iconSizeY = 19, 19
+    end
+
+    local minigamesIcon = MinigamesWindow.Header:FindFirstChildOfClass("ImageLabel")
+    if minigamesIcon then
+        minigamesIcon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
+        minigamesIcon.Position = UDim2.new(0, 15 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)
+    end
 
     -- モジュールのロード
    -- Load modules dynamically by requiring the file paths
