@@ -1,4 +1,4 @@
--- src/games/1_8arena/modules/blatant/Speed.lua
+-- src/gui/components/Speed.lua
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
@@ -14,11 +14,11 @@ Speed.Settings = {
     AutoJump = false
 }
 
--- 🌟 【安全対策】各エクスプロイトの環境差を吸収して関数を確実に取得
-local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue)
-local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue)
+-- 🌟 各種エクスプロイトの環境差を吸収して関数を確実に取得
+local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
+local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
--- 🌟 【新規開発】メモリ(getgc)からゲーム内の隠れた「arena」テーブルを自動で発掘してバインドするスキャナー
+-- 🌟 【新規開発】メモリ(getgc)およびローカル関数upvaluesから隠れた「arena」を自動追跡してバインドするスキャナー
 local function getArenaTable()
     -- 1. すでにグローバルに存在していれば即座に返す
     local globalArena = arena or _G.arena or (getgenv and getgenv().arena)
@@ -26,15 +26,41 @@ local function getArenaTable()
         return globalArena
     end
 
-    -- 2. 無い場合はガベージコレクターを巡回スキャンして自動救出
+    -- 2. 無い場合はガベージコレクター(GC)から直接テーブルを検索
     local getgc = getgc or (getgenv and getgenv().getgc)
     if getgc then
         local success, result = pcall(function()
             for _, v in ipairs(getgc(true)) do
-                if typeof(v) == "table" and rawget(v, "MoveFunction") and rawget(v, "TickFunction") then
-                    print("[Speed Scanner] Found and bound hidden 'arena' table from GC!")
-                    if getgenv then getgenv().arena = v end -- 次回からのロードを高速化するためにグローバル登録
-                    return v
+                if typeof(v) == "table" then
+                    local ok, hasKeys = pcall(function()
+                        return typeof(v.MoveFunction) == "function" and typeof(v.TickFunction) == "function"
+                    end)
+                    if ok and hasKeys then
+                        print("[Speed Scanner] Found 'arena' table directly in GC!")
+                        if getgenv then getgenv().arena = v end
+                        return v
+                    end
+                end
+            end
+
+            -- 3. 【upvaluesスキャン】ローカル変数として隠されている場合、メモリ内の全関数から発掘
+            for _, v in ipairs(getgc()) do
+                if typeof(v) == "function" and getupvalue then
+                    for i = 1, 100 do
+                        local ok, name, val = pcall(getupvalue, v, i)
+                        if not ok or not name then break end -- これ以上upvalueがない場合は終了
+
+                        if typeof(val) == "table" then
+                            local ok2, hasKeys = pcall(function()
+                                return typeof(val.MoveFunction) == "function" and typeof(val.TickFunction) == "function"
+                            end)
+                            if ok2 and hasKeys then
+                                print("[Speed Scanner] Successfully scavenged 'arena' from function upvalue: " .. tostring(name))
+                                if getgenv then getgenv().arena = val end
+                                return val
+                            end
+                        end
+                    end
                 end
             end
         end)
@@ -93,17 +119,26 @@ function Speed.Callback(enabled)
     if enabled then
         print("[Speed Debug] Module Enabled.")
         
-        local frameCount = 0
+        local diagnosticsLogged = false
         local connection
         
         connection = RunService.PreSimulation:Connect(function()
-            -- 🌟 メモリから自動発掘された「arena」を取得
             local activeArena = getArenaTable()
 
+            -- ── 🌟 何が欠落しているかをピンポイントで書き出す診断処理 ──
             if not getupvalue or not setupvalue or not activeArena then
-                frameCount = frameCount + 1
-                if frameCount % 60 == 0 then
-                    warn("[Speed] Missing environment functions or 'arena' table. Speed hack skipped.")
+                if not diagnosticsLogged then
+                    diagnosticsLogged = true
+                    warn("⚠️ --- Speed Diagnostics Failure ---")
+                    warn("  - getupvalue function exists:", getupvalue ~= nil)
+                    warn("  - setupvalue function exists:", setupvalue ~= nil)
+                    warn("  - activeArena table exists:", activeArena ~= nil)
+                    if activeArena then
+                        warn("    - MoveFunction exists:", activeArena.MoveFunction ~= nil)
+                        warn("    - TickFunction exists:", activeArena.TickFunction ~= nil)
+                    end
+                    warn("  Speed hack skipped to prevent client crash.")
+                    warn("-------------------------------------")
                 end
                 return
             end
@@ -114,15 +149,6 @@ function Speed.Callback(enabled)
                 
                 local onground = getupvalue(activeArena.MoveFunction, 4)
                 local velocity = getupvalue(activeArena.TickFunction, 6)
-
-                frameCount = frameCount + 1
-                if frameCount % 60 == 0 then
-                    print(string.format("[Speed Loop] movedir: %s | onground: %s | velocity: %s", 
-                        tostring(movedir), 
-                        tostring(onground), 
-                        tostring(velocity)
-                    ))
-                end
 
                 -- 1.8 Arena 固有の Tick 物理ベクトルを直接オーバーライド
                 setupvalue(
