@@ -15,10 +15,37 @@ Speed.Settings = {
 }
 
 -- 🌟 【安全対策】各エクスプロイトの環境差を吸収して関数を確実に取得
-local getupvalue = (debug and debug.getupvalue) or getupvalue or (getfenv and getfenv().getupvalue)
-local setupvalue = (debug and debug.setupvalue) or setupvalue or (getfenv and getfenv().setupvalue)
+local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue)
+local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue)
 
--- 🌟 【安全対策】Roblox標準の移動ベクトルコントロールを取得
+-- 🌟 【新規開発】メモリ(getgc)からゲーム内の隠れた「arena」テーブルを自動で発掘してバインドするスキャナー
+local function getArenaTable()
+    -- 1. すでにグローバルに存在していれば即座に返す
+    local globalArena = arena or _G.arena or (getgenv and getgenv().arena)
+    if typeof(globalArena) == "table" and typeof(globalArena.MoveFunction) == "function" then
+        return globalArena
+    end
+
+    -- 2. 無い場合はガベージコレクターを巡回スキャンして自動救出
+    local getgc = getgc or (getgenv and getgenv().getgc)
+    if getgc then
+        local success, result = pcall(function()
+            for _, v in ipairs(getgc(true)) do
+                if typeof(v) == "table" and rawget(v, "MoveFunction") and rawget(v, "TickFunction") then
+                    print("[Speed Scanner] Found and bound hidden 'arena' table from GC!")
+                    if getgenv then getgenv().arena = v end -- 次回からのロードを高速化するためにグローバル登録
+                    return v
+                end
+            end
+        end)
+        if success and result then
+            return result
+        end
+    end
+    return nil
+end
+
+-- Roblox標準の移動ベクトルコントロールを取得
 local localPlayer = Players.LocalPlayer
 local controls = nil
 pcall(function()
@@ -26,16 +53,13 @@ pcall(function()
     controls = require(PlayerModule):GetControls()
 end)
 
--- 🌟 【安全対策】calculateMoveVector が無くても、Roblox標準から自動計算するフォールバック関数
 local function getMoveVector()
-    -- 1. グローバルに calculateMoveVector があれば優先使用
     local globalCalc = calculateMoveVector or _G.calculateMoveVector or (getgenv and getgenv().calculateMoveVector)
     if typeof(globalCalc) == "function" then
         local success, res = pcall(globalCalc)
         if success and res then return res end
     end
     
-    -- 2. 無ければ標準のコントロールから MoveVector を取得してフォールバック
     if controls and controls.GetMoveVector then
         local success, res = pcall(function() return controls:GetMoveVector() end)
         if success and res then return res end
@@ -73,23 +97,23 @@ function Speed.Callback(enabled)
         local connection
         
         connection = RunService.PreSimulation:Connect(function()
-            -- ── 🌟 安全な条件判定 ──
-            -- アリーナの物理テーブルや必要関数が存在しない場合は、クラッシュを防ぐためスキップ
-            if not getupvalue or not setupvalue or typeof(arena) ~= "table" or typeof(arena.MoveFunction) ~= "function" or typeof(arena.TickFunction) ~= "function" then
+            -- 🌟 メモリから自動発掘された「arena」を取得
+            local activeArena = getArenaTable()
+
+            if not getupvalue or not setupvalue or not activeArena then
                 frameCount = frameCount + 1
                 if frameCount % 60 == 0 then
-                    warn("[Speed] Missing required environment functions (debug/arena). Speed hack skipped.")
+                    warn("[Speed] Missing environment functions or 'arena' table. Speed hack skipped.")
                 end
                 return
             end
 
             local success, err = pcall(function()
-                -- 安全な移動ベクトル取得関数を呼び出し
                 local moveVec = getMoveVector()
                 local movedir = moveVec * Speed.Settings.SpeedValue
                 
-                local onground = getupvalue(arena.MoveFunction, 4)
-                local velocity = getupvalue(arena.TickFunction, 6)
+                local onground = getupvalue(activeArena.MoveFunction, 4)
+                local velocity = getupvalue(activeArena.TickFunction, 6)
 
                 frameCount = frameCount + 1
                 if frameCount % 60 == 0 then
@@ -102,7 +126,7 @@ function Speed.Callback(enabled)
 
                 -- 1.8 Arena 固有の Tick 物理ベクトルを直接オーバーライド
                 setupvalue(
-                    arena.TickFunction, 
+                    activeArena.TickFunction, 
                     6, 
                     Vector3.new(
                         movedir.X, 
@@ -112,7 +136,6 @@ function Speed.Callback(enabled)
                 )
             end)
             
-            -- 万が一それ以外の不具合が発生した場合は警告を出す
             if not success then
                 warn("[Speed Hack Error]:", tostring(err))
             end
