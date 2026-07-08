@@ -17,7 +17,7 @@ local places = {
     ["81463261330977"] = require("games.pillars_of_fortune.base"),
 
     -- 7. Bridge Duel (まだフォルダが無い場合はコメントアウト)
-    -- ["13956616152"] = require("games.bridge_duel.base"),
+    ["13956616152"] = require("games.bridge_duel.base"),
 }
 
 -- 🌟 universal フォルダも作成していない場合は、一旦コメントアウトしてください
