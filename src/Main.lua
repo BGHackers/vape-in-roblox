@@ -97,24 +97,31 @@ LoadingScreen.show(ScreenGui, assets, function()
 -- src/Main.lua の LoadingScreen.show 内
 
     -- 🌟 【修正】空のモック関数「UpdateTextGUI」を追加し、
-    -- モジュール切り替え時に発生していた missing method クラッシュを解決します。
-  -- src/Main.lua inside LoadingScreen.show
+-- src/Main.lua の 122行目付近、LoadingScreen.show 内
+
+    -- 🌟 【安全強化版】vape:CreateNotification 登録用モックAPI
+    -- コロン「:」とドット「.」どちらの呼び出し方にも自動でアライメント（ズレ補正）を行います。
     local Notification = require("gui.Notification")
     _G.mainapi = {
-        CreateNotification = function(self, title, text, duration, notifType)
+        CreateNotification = function(...)
+            local args = {...}
+            
+            -- もし第1引数がテーブルかつ自身への参照メソッドを持っている場合、
+            -- コロン呼び出し（vape:CreateNotification）と判定して self を安全に排除します。
+            if type(args[1]) == "table" and args[1].CreateNotification then
+                table.remove(args, 1)
+            end
+            
+            local title, text, duration, notifType = args[1], args[2], args[3], args[4]
             Notification.create(ScreenGui, title, text, duration, notifType)
         end,
         UpdateTextGUI = function(self, ...)
-            -- Empty method to prevent missing method crashes
+            -- 共通のクラッシュ防止用空モック
         end,
         RainbowTable = {},
-        -- Option A: Classic Vape Teal Green applied
--- Exact color representation matched from the Scaffold screenshot
--- Exact color representation matched from the Parkour screenshot (Deep Emerald Teal)
-    GUIColor = { Hue = 0.45, Sat = 1.00, Value = 0.50 }
+        GUIColor = { Hue = 0.45, Sat = 1.00, Value = 0.50 }
     }
-    shared.vape = _G.mainapi -- For compatibility
-
+    shared.vape = _G.mainapi -- 互換性確保
 
 
     -- すべてのベースウィンドウ（Container）の定義
