@@ -96,11 +96,21 @@ function Notification.create(parentScreenGui, title, text, duration, notifType)
     card.Size = UDim2.fromOffset(math.max(textBounds.X + 80, 266), 75)
     card.Position = UDim2.new(1, 0, 1, -(29 + (78 * i)))
     card.ZIndex = 5
-    card.BackgroundTransparency = 1
+    
+    -- 🌟 【安全対策】getcustomasset が機能しない（Roblox Studio 等の）環境でもカードが表示されるようにフォールバックを設定
+    local customAssetExists = (getcustomasset or (getgenv and getgenv().getcustomasset)) ~= nil
+    card.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    card.BackgroundTransparency = customAssetExists and 1 or 0.15 -- 画像が使えれば1（完全透明）、使えなければ0.15（半透明カード化）
+    
     card.Image = getAsset("notification.png")
     card.ScaleType = Enum.ScaleType.Slice
     card.SliceCenter = Rect.new(7, 7, 9, 9)
     card.Parent = notificationsFolder
+    
+    local cCorner = Instance.new("UICorner")
+    cCorner.CornerRadius = UDim.new(0, 5)
+    cCorner.Parent = card
+    
     addBlur(card)
 
     -- アイコン
@@ -175,7 +185,7 @@ function Notification.create(parentScreenGui, title, text, duration, notifType)
             AnchorPoint = Vector2.new(0, 0)
         }):Play()
 
-        task.wait(0.4) -- 🌟 スライドアウトが終わるのを待ってからデストロイ
+        task.wait(0.4) -- スライドアウトが終わるのを待ってからデストロイ
         if card and card.Parent then
             card:ClearAllChildren()
             card:Destroy()
