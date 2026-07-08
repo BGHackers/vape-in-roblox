@@ -1,4 +1,9 @@
-local run = function(func) func() end
+-- src/games/1_8arena/init.lua
+
+-- 🌟 【重要修正】task.spawn を使うことで、メインの require 処理を一切止めずに
+-- バックグラウンドで安全にキャラクターのロード待機を行えるように非同期化しました。
+local run = function(func) task.spawn(func) end 
+
 local cloneref = cloneref or function(obj) return obj end
 
 local playersService = cloneref(game:GetService('Players'))
@@ -40,13 +45,15 @@ local function notif(...)
 end
 
 run(function()
-	local charscript = lplr.PlayerScripts.CharacterController
+	local charscript = lplr.PlayerScripts:WaitForChild("CharacterController", 10)
+	if not charscript then return end
+	
 	local env = getsenv(charscript)
 	if not (env and env.startHit) then
 		repeat
 			env = getsenv(charscript)
 			task.wait()
-		until env and env.startHit or vape.Loaded == nil
+		until (env and env.startHit) or vape.Loaded == nil
 
 		if vape.Loaded == nil then return end
 	end
@@ -61,7 +68,6 @@ run(function()
 
 	for _, v in getconnections(runService.Heartbeat) do
 		if v.Function and islclosure(v.Function) and debug.getconstants(v.Function)[1] == 0.05 then
-			-- screw mobile exploits, I only have to add this check because none of these pastesploits can implement a *proper* task scheduler for script execution, what a joke.
 			arena.TickFunction = debug.getupvalue(v.Function, 3)
 		end
 	end
@@ -72,13 +78,12 @@ run(function()
 		end
 	end
 
-	-- 別ファイル（Speed.luaなど）から直接読み込めるようにグローバルに公開
+	-- 🌟 非同期になったことで、これが安全にバックグラウンドで実行され確実にグローバル登録されます！
 	getgenv().arena = arena
 	getgenv().calculateMoveVector = calculateMoveVector
 
 	vape:Clean(function()
 		table.clear(arena)
-		-- アンインジェクト（終了）時にグローバルから安全に破棄
 		getgenv().arena = nil
 		getgenv().calculateMoveVector = nil
 	end)
@@ -204,7 +209,6 @@ run(function()
 	entitylib.start()
 end)
 
--- 🌟 【修正】vape:Remove がない場合でもクラッシュせず、ビルドエラー（構文エラー）も完全に回避する安全な記述に書き換えました。
 if vape and vape.Remove then
 	for _, v in ipairs({'AimAssist', 'Reach', 'SilentAim', 'AntiFall', 'Desync', 'Invisible', 'Jesus', 'MouseTP', 'Phase', 'SpinBot', 'Swim', 'TargetStrafe', 'AnimationPlayer', 'AntiRagdoll', 'ChatSpammer', 'Disabler', 'StateSpoofer', 'Freecam', 'Gravity', 'Parkour', 'SafeWalk', 'MurderMystery'}) do
 		pcall(function()
