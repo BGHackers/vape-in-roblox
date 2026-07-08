@@ -14,19 +14,51 @@ Speed.Settings = {
     AutoJump = false
 }
 
--- 🌟 各種エクスプロイトの環境差を吸収して関数を確実に取得
+-- 各種エクスプロイトの環境差を吸収して関数を確実に取得
 local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
 local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
--- 🌟 【完全独立カプセル化】エラーに非常に強い3段階のarena自動発掘スキャナー
+-- 🌟 【超高精度スキャナー】メタテーブル保護を迂回し、全環境から arena を強制特定
 local function getArenaTable()
-    -- 1. すでにグローバルに存在していれば即座に返す
-    local globalArena = arena or _G.arena or (getgenv and getgenv().arena)
-    if typeof(globalArena) == "table" and typeof(globalArena.MoveFunction) == "function" then
-        return globalArena
+    -- 1. すべての主要な環境グローバル（大文字小文字の全パターン）をスキャン
+    local searchNames = {"arena", "Arena", "ARENA", "arenaTable", "ArenaTable"}
+    for _, name in ipairs(searchNames) do
+        for _, env in ipairs({_G, shared, (getgenv and getgenv()) or {}}) do
+            if env and env[name] and typeof(env[name]) == "table" then
+                local ok, hasKeys = pcall(function()
+                    return typeof(env[name].MoveFunction) == "function" and typeof(env[name].TickFunction) == "function"
+                end)
+                if ok and hasKeys then
+                    return env[name]
+                end
+            end
+        end
     end
 
-    -- 2. 【独立スキャン A】Registry (getreg / getregistry) からの検索
+    -- 2. 【新規】現在ゲーム内でロードされているModuleScriptから直接 require して強制取得
+    local getloadedmodules = getloadedmodules or (getgenv and getgenv().getloadedmodules)
+    if getloadedmodules then
+        local success, modules = pcall(getloadedmodules)
+        if success and typeof(modules) == "table" then
+            for _, mod in ipairs(modules) do
+                if typeof(mod) == "Instance" and mod:IsA("ModuleScript") and (mod.Name:lower() == "arena" or mod.Name:lower():find("arena")) then
+                    local reqSuccess, res = pcall(require, mod)
+                    if reqSuccess and typeof(res) == "table" then
+                        local ok, hasKeys = pcall(function()
+                            return typeof(res.MoveFunction) == "function" and typeof(res.TickFunction) == "function"
+                        end)
+                        if ok and hasKeys then
+                            print("[Speed Scanner] Found 'arena' table by requiring loaded ModuleScript: " .. mod:GetFullName())
+                            if getgenv then getgenv().arena = res end
+                            return res
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Registry (getreg / getregistry) からの検索 (rawgetを廃止し通常インデックスで保護走査)
     local getreg = (debug and debug.getregistry) or getreg or (getgenv and getgenv().getreg)
     if getreg then
         local success, reg = pcall(getreg)
@@ -34,7 +66,7 @@ local function getArenaTable()
             for _, v in pairs(reg) do
                 if typeof(v) == "table" then
                     local ok, hasKeys = pcall(function()
-                        return typeof(rawget(v, "MoveFunction")) == "function" and typeof(rawget(v, "TickFunction")) == "function"
+                        return typeof(v.MoveFunction) == "function" and typeof(v.TickFunction) == "function"
                     end)
                     if ok and hasKeys then
                         print("[Speed Scanner] Found 'arena' in Registry!")
@@ -46,7 +78,7 @@ local function getArenaTable()
         end
     end
 
-    -- 3. 【独立スキャン B】getgc(true) を用いたダイレクトなテーブル検索
+    -- 4. getgc(true) を用いた探索 (通常インデックス)
     local getgc = getgc or (getgenv and getgenv().getgc)
     if getgc then
         local success, gc = pcall(getgc, true)
@@ -54,7 +86,7 @@ local function getArenaTable()
             for _, v in ipairs(gc) do
                 if typeof(v) == "table" then
                     local ok, hasKeys = pcall(function()
-                        return typeof(rawget(v, "MoveFunction")) == "function" and typeof(rawget(v, "TickFunction")) == "function"
+                        return typeof(v.MoveFunction) == "function" and typeof(v.TickFunction) == "function"
                     end)
                     if ok and hasKeys then
                         print("[Speed Scanner] Found 'arena' in GC Tables!")
@@ -66,7 +98,7 @@ local function getArenaTable()
         end
     end
 
-    -- 4. 【独立スキャン C】全関数のアップバリュー(upvalues)からの徹底検索
+    -- 5. 全関数のアップバリュー(upvalues)からの徹底検索 (通常インデックス)
     if getgc and getupvalue then
         local success, gc = pcall(getgc)
         if success and typeof(gc) == "table" then
@@ -74,11 +106,11 @@ local function getArenaTable()
                 if typeof(v) == "function" then
                     for i = 1, 80 do
                         local ok, name, val = pcall(getupvalue, v, i)
-                        if not ok or not name then break end -- これ以上upvalueがない場合はループを抜ける
+                        if not ok or not name then break end
 
                         if typeof(val) == "table" then
                             local ok2, hasKeys = pcall(function()
-                                return typeof(rawget(val, "MoveFunction")) == "function" and typeof(rawget(val, "TickFunction")) == "function"
+                                return typeof(val.MoveFunction) == "function" and typeof(val.TickFunction) == "function"
                             end)
                             if ok2 and hasKeys then
                                 print("[Speed Scanner] Found 'arena' in upvalue: " .. tostring(name))
@@ -147,6 +179,7 @@ function Speed.Callback(enabled)
         local connection
         
         connection = RunService.PreSimulation:Connect(function()
+            -- メモリから超強力発掘された「arena」を取得
             local activeArena = getArenaTable()
 
             -- ── 🌟 何が欠落しているかをピンポイントで書き出す診断処理 ──
