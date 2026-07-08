@@ -1,4 +1,4 @@
--- src/gui/components/Speed.lua
+-- src/games/1_8arena/modules/blatant/Speed.lua
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
@@ -18,7 +18,7 @@ Speed.Settings = {
 local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
 local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
--- 🌟 【新規開発】メモリ(getgc)およびローカル関数upvaluesから隠れた「arena」を自動追跡してバインドするスキャナー
+-- 🌟 【完全独立カプセル化】エラーに非常に強い3段階のarena自動発掘スキャナー
 local function getArenaTable()
     -- 1. すでにグローバルに存在していれば即座に返す
     local globalArena = arena or _G.arena or (getgenv and getgenv().arena)
@@ -26,36 +26,62 @@ local function getArenaTable()
         return globalArena
     end
 
-    -- 2. 無い場合はガベージコレクター(GC)から直接テーブルを検索
-    local getgc = getgc or (getgenv and getgenv().getgc)
-    if getgc then
-        local success, result = pcall(function()
-            for _, v in ipairs(getgc(true)) do
+    -- 2. 【独立スキャン A】Registry (getreg / getregistry) からの検索
+    local getreg = (debug and debug.getregistry) or getreg or (getgenv and getgenv().getreg)
+    if getreg then
+        local success, reg = pcall(getreg)
+        if success and typeof(reg) == "table" then
+            for _, v in pairs(reg) do
                 if typeof(v) == "table" then
                     local ok, hasKeys = pcall(function()
-                        return typeof(v.MoveFunction) == "function" and typeof(v.TickFunction) == "function"
+                        return typeof(rawget(v, "MoveFunction")) == "function" and typeof(rawget(v, "TickFunction")) == "function"
                     end)
                     if ok and hasKeys then
-                        print("[Speed Scanner] Found 'arena' table directly in GC!")
+                        print("[Speed Scanner] Found 'arena' in Registry!")
                         if getgenv then getgenv().arena = v end
                         return v
                     end
                 end
             end
+        end
+    end
 
-            -- 3. 【upvaluesスキャン】ローカル変数として隠されている場合、メモリ内の全関数から発掘
-            for _, v in ipairs(getgc()) do
-                if typeof(v) == "function" and getupvalue then
-                    for i = 1, 100 do
+    -- 3. 【独立スキャン B】getgc(true) を用いたダイレクトなテーブル検索
+    local getgc = getgc or (getgenv and getgenv().getgc)
+    if getgc then
+        local success, gc = pcall(getgc, true)
+        if success and typeof(gc) == "table" then
+            for _, v in ipairs(gc) do
+                if typeof(v) == "table" then
+                    local ok, hasKeys = pcall(function()
+                        return typeof(rawget(v, "MoveFunction")) == "function" and typeof(rawget(v, "TickFunction")) == "function"
+                    end)
+                    if ok and hasKeys then
+                        print("[Speed Scanner] Found 'arena' in GC Tables!")
+                        if getgenv then getgenv().arena = v end
+                        return v
+                    end
+                end
+            end
+        end
+    end
+
+    -- 4. 【独立スキャン C】全関数のアップバリュー(upvalues)からの徹底検索
+    if getgc and getupvalue then
+        local success, gc = pcall(getgc)
+        if success and typeof(gc) == "table" then
+            for _, v in ipairs(gc) do
+                if typeof(v) == "function" then
+                    for i = 1, 80 do
                         local ok, name, val = pcall(getupvalue, v, i)
-                        if not ok or not name then break end -- これ以上upvalueがない場合は終了
+                        if not ok or not name then break end -- これ以上upvalueがない場合はループを抜ける
 
                         if typeof(val) == "table" then
                             local ok2, hasKeys = pcall(function()
-                                return typeof(val.MoveFunction) == "function" and typeof(val.TickFunction) == "function"
+                                return typeof(rawget(val, "MoveFunction")) == "function" and typeof(rawget(val, "TickFunction")) == "function"
                             end)
                             if ok2 and hasKeys then
-                                print("[Speed Scanner] Successfully scavenged 'arena' from function upvalue: " .. tostring(name))
+                                print("[Speed Scanner] Found 'arena' in upvalue: " .. tostring(name))
                                 if getgenv then getgenv().arena = val end
                                 return val
                             end
@@ -63,11 +89,9 @@ local function getArenaTable()
                     end
                 end
             end
-        end)
-        if success and result then
-            return result
         end
     end
+
     return nil
 end
 
