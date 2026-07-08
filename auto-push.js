@@ -35,14 +35,23 @@ chokidar.watch('.', {
             // watch.jsにエラーがある、または存在しない場合はスキップします
         }
 
-        console.log('\n📤 GitHubへ送信中...');
         try {
-            execSync('git add .', { stdio: 'inherit' });
+            // すべての変更を仮追加
+            execSync('git add .', { stdio: 'ignore' });
+
+            // 🌟 【新規追加】変更差分があるかどうかを確認する処理
+            const status = execSync('git status --porcelain').toString().trim();
+            if (status === '') {
+                console.log('\nℹ️ 変更がないため、GitHubへの送信をスキップします。\n');
+                return; // 差分がなければ、ここで安全に送信処理を中止します
+            }
+
+            console.log('\n📤 GitHubへ送信中...');
             execSync('git commit -m "Sync source files and configs"', { stdio: 'inherit' });
             execSync('git push origin main', { stdio: 'inherit' });
             console.log('✅ 送信完了！最新のコードが即座に反映されました。\n');
         } catch (error) {
-            console.error('❌ 送信失敗（コンフリクトまたはネット接続を確認してください）\n');
+            console.error('\n❌ 送信失敗（コンフリクトまたはネット接続を確認してください）\n');
         }
     }, 5000);
 });
