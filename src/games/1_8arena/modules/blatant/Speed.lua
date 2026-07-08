@@ -7,6 +7,12 @@ local Speed = {
     TargetGame = "1_8arena" -- 🌟 1.8 Arenaでのみ自動ロード
 }
 
+-- 🌟 【修正】削除してしまっていた設定値テーブルを復活させました
+Speed.Settings = {
+    SpeedValue = 30,
+    AutoJump = false
+}
+
 -- 元のVapeコードに記述されている変数名に同期（ファイルローカルで初期定義）
 local Value = { Value = 30 }
 local AutoJump = { Enabled = false }
@@ -55,7 +61,7 @@ function Speed.Callback(enabled)
         local connection
         
         connection = RunService.PreSimulation:Connect(function()
-            -- 🌟 【超軽量】init.lua によって getgenv() に公開された変数を直接読み込みます
+            -- 🌟 init.lua によって getgenv() に公開された変数を直接読み込みます
             local activeArena = getgenv().arena or arena
             local calcMoveVec = getgenv().calculateMoveVector or calculateMoveVector
 
