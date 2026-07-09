@@ -1,7 +1,7 @@
 -- src/games/1_8arena/init.lua
 
--- 🌟 【重要修正】task.spawn を使うことで、メインの require 処理を一切止めずに
--- バックグラウンドで安全にキャラクターのロード待機を行えるように非同期化しました。
+-- 🌟 task.spawn を使うことで、メインの require 処理を一切止めずに
+-- バックグラウンドで安全にキャラクターのロード待機を行えるように非同期化
 local run = function(func) task.spawn(func) end 
 
 local cloneref = cloneref or function(obj) return obj end
@@ -53,9 +53,10 @@ run(function()
 		repeat
 			env = getsenv(charscript)
 			task.wait()
-		until (env and env.startHit) or vape.Loaded == nil
+		-- 🌟 【修正】vape.Loaded の代わりに shared.vape を監視することで、待機処理を正しく機能させます
+		until (env and env.startHit) or shared.vape == nil
 
-		if vape.Loaded == nil then return end
+		if shared.vape == nil then return end
 	end
 
 	arena = {
@@ -66,19 +67,20 @@ run(function()
 		SwingFunction = debug.getupvalue(getsenv(charscript).startHit, 1)
 	}
 
-	for _, v in getconnections(runService.Heartbeat) do
+	-- 🌟 【修正】node check でビルドエラーを吐かないよう、ipairs 構文に修正
+	for _, v in ipairs(getconnections(runService.Heartbeat)) do
 		if v.Function and islclosure(v.Function) and debug.getconstants(v.Function)[1] == 0.05 then
 			arena.TickFunction = debug.getupvalue(v.Function, 3)
 		end
 	end
 
-	for _, v in getconnections(replicatedStorage.Remotes.LoadLocalCharacter.OnClientEvent) do
+	-- 🌟 【修正】node check でビルドエラーを吐かないよう、ipairs 構文に修正
+	for _, v in ipairs(getconnections(replicatedStorage.Remotes.LoadLocalCharacter.OnClientEvent)) do
 		if v.Function then
 			arena.MoveFunction = debug.getupvalue(v.Function, 9)
 		end
 	end
 
-	-- 🌟 非同期になったことで、これが安全にバックグラウンドで実行され確実にグローバル登録されます！
 	getgenv().arena = arena
 	getgenv().calculateMoveVector = calculateMoveVector
 
@@ -209,6 +211,7 @@ run(function()
 	entitylib.start()
 end)
 
+-- 🌟 【修正】node check でビルドエラーを吐かないよう、ipairs 構文に修正
 if vape and vape.Remove then
 	for _, v in ipairs({'AimAssist', 'Reach', 'SilentAim', 'AntiFall', 'Desync', 'Invisible', 'Jesus', 'MouseTP', 'Phase', 'SpinBot', 'Swim', 'TargetStrafe', 'AnimationPlayer', 'AntiRagdoll', 'ChatSpammer', 'Disabler', 'StateSpoofer', 'Freecam', 'Gravity', 'Parkour', 'SafeWalk', 'MurderMystery'}) do
 		pcall(function()
