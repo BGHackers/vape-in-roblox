@@ -16,9 +16,6 @@ local coreGui = cloneref(game:GetService('CoreGui'))
 
 local gameCamera = workspace.CurrentCamera
 local lplr = playersService.LocalPlayer
-local vape = shared.vape
-local entitylib = vape.Libraries.entity
-local targetinfo = vape.Libraries.targetinfo
 local arena = {}
 
 local oldhit
@@ -41,10 +38,23 @@ local function calculateMoveVector()
 end
 
 local function notif(...)
-	return vape:CreateNotification(...)
+	local vape = shared.vape or _G.mainapi
+	if vape and vape.CreateNotification then
+		return vape:CreateNotification(...)
+	end
 end
 
 run(function()
+	-- 🌟 【重要修正】vapeの初期化完了を非同期に待つことで、Main.luaとの競合を完全に防ぎます
+	local vape = shared.vape
+	if not vape then
+		repeat
+			vape = shared.vape
+			task.wait()
+		until vape or _G.mainapi
+		vape = vape or _G.mainapi
+	end
+
 	local charscript = lplr.PlayerScripts:WaitForChild("CharacterController", 10)
 	if not charscript then return end
 	
@@ -53,10 +63,9 @@ run(function()
 		repeat
 			env = getsenv(charscript)
 			task.wait()
-		-- 🌟 【修正】vape.Loaded の代わりに shared.vape を監視することで、待機処理を正しく機能させます
-		until (env and env.startHit) or shared.vape == nil
+		until (env and env.startHit) or vape.Loaded == nil
 
-		if shared.vape == nil then return end
+		if vape.Loaded == nil then return end
 	end
 
 	arena = {
@@ -67,14 +76,12 @@ run(function()
 		SwingFunction = debug.getupvalue(getsenv(charscript).startHit, 1)
 	}
 
-	-- 🌟 【修正】node check でビルドエラーを吐かないよう、ipairs 構文に修正
 	for _, v in ipairs(getconnections(runService.Heartbeat)) do
 		if v.Function and islclosure(v.Function) and debug.getconstants(v.Function)[1] == 0.05 then
 			arena.TickFunction = debug.getupvalue(v.Function, 3)
 		end
 	end
 
-	-- 🌟 【修正】node check でビルドエラーを吐かないよう、ipairs 構文に修正
 	for _, v in ipairs(getconnections(replicatedStorage.Remotes.LoadLocalCharacter.OnClientEvent)) do
 		if v.Function then
 			arena.MoveFunction = debug.getupvalue(v.Function, 9)
@@ -92,6 +99,19 @@ run(function()
 end)
 
 run(function()
+	-- 🌟 【重要修正】vape と entitylib の初期化完了を非同期に待ちます
+	local vape = shared.vape
+	if not vape then
+		repeat
+			vape = shared.vape
+			task.wait()
+		until vape or _G.mainapi
+		vape = vape or _G.mainapi
+	end
+
+	local entitylib = vape.Libraries.entity
+	local targetinfo = vape.Libraries.targetinfo
+
 	local function waitForChildOfType(obj, name, timeout, prop)
 		local checktick = tick() + timeout
 		local returned
@@ -211,11 +231,22 @@ run(function()
 	entitylib.start()
 end)
 
--- 🌟 【修正】node check でビルドエラーを吐かないよう、ipairs 構文に修正
-if vape and vape.Remove then
-	for _, v in ipairs({'AimAssist', 'Reach', 'SilentAim', 'AntiFall', 'Desync', 'Invisible', 'Jesus', 'MouseTP', 'Phase', 'SpinBot', 'Swim', 'TargetStrafe', 'AnimationPlayer', 'AntiRagdoll', 'ChatSpammer', 'Disabler', 'StateSpoofer', 'Freecam', 'Gravity', 'Parkour', 'SafeWalk', 'MurderMystery'}) do
-		pcall(function()
-			vape:Remove(v)
-		end)
+-- 🌟 【重要修正】非同期に待機し、安全に不要モジュールをクリーンアップ
+task.spawn(function()
+	local vape = shared.vape
+	if not vape then
+		repeat
+			vape = shared.vape
+			task.wait()
+		until vape or _G.mainapi
+		vape = vape or _G.mainapi
 	end
-end
+
+	if vape and vape.Remove then
+		for _, v in ipairs({'AimAssist', 'Reach', 'SilentAim', 'AntiFall', 'Desync', 'Invisible', 'Jesus', 'MouseTP', 'Phase', 'SpinBot', 'Swim', 'TargetStrafe', 'AnimationPlayer', 'AntiRagdoll', 'ChatSpammer', 'Disabler', 'StateSpoofer', 'Freecam', 'Gravity', 'Parkour', 'SafeWalk', 'MurderMystery'}) do
+			pcall(function()
+				vape:Remove(v)
+			end)
+		end
+	end
+end)
