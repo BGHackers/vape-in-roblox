@@ -121,10 +121,10 @@ function Speed.Callback(enabled)
         local rootNotFoundLogged = false
         local lastMovingState = nil
         
-        -- 🌟 自作物理ステート変数
+        -- 🌟 【ぬるぬる物理仕様調整】自作物理ステート変数
         local verticalVelocity = 0
-        local gravity = 196.2     -- Roblox標準重力
-        local jumpVelocity = 50   -- Roblox標準ジャンプ初速
+        local gravity = 130.0     -- 重力：少し低くすることで滑らかな放物線を描きます（標準は196.2）
+        local jumpVelocity = 40.0  -- ジャンプ初速：重力とのバランスで自然な高さ（約6スタッド）になるよう調整
         local pivotOffset = 3.0   -- アバターに応じた地面までのオフセット
         local measuredOffset = false
         
@@ -185,7 +185,7 @@ function Speed.Callback(enabled)
 
                 -- 2. 垂直方向（Y）の自作重力演算
                 verticalVelocity = verticalVelocity - (gravity * dt)
-                local targetY = cur.Position.Y + (verticalVelocity * dt)
+                local calculatedY = cur.Position.Y + (verticalVelocity * dt)
 
                 -- 3. 自作接地判定（真下へのショートレイキャスト）
                 local raycastParams = RaycastParams.new()
@@ -193,7 +193,7 @@ function Speed.Callback(enabled)
                 raycastParams.FilterDescendantsInstances = {model}
                 
                 -- 移動先座標の少し上（2スタッド）から15スタッド下に向けて、地面との交差を判定
-                local rayStart = Vector3.new(nextX, targetY + 2, nextZ)
+                local rayStart = Vector3.new(nextX, calculatedY + 2, nextZ)
                 local rayResult = workspace:Raycast(rayStart, Vector3.new(0, -15, 0), raycastParams)
 
                 local groundY = nil
@@ -203,8 +203,8 @@ function Speed.Callback(enabled)
                 end
 
                 -- 計算上の高さが地面以下になった（着地した）場合の処理
-                if groundY and targetY <= groundY then
-                    targetY = groundY
+                if groundY and calculatedY <= groundY then
+                    calculatedY = groundY
                     verticalVelocity = 0 -- 落下速度の初期化
                     
                     -- 地面にいて、かつ移動入力がある場合は次のバニーホップを即座にシミュレート
@@ -214,8 +214,13 @@ function Speed.Callback(enabled)
                     end
                 end
 
+                -- 🌟 【ぬるぬる化】指数移動平均（Exponential Moving Average）による垂直座標の超平滑化
+                -- 1 - math.exp(-22 * dt) は、フレームレートに依存せず常に滑らかなクッションを生み出す物理フィルターです。
+                -- テイクオフやランディング時の不自然なカクつきや、地面レイキャストの小刻みなブレを完全に吸着します。
+                local smoothY = cur.Position.Y + (calculatedY - cur.Position.Y) * (1 - math.exp(-22 * dt))
+
                 -- 4. 計算した次フレームの3次元座標と回転を合わせてモデルを移動
-                local nextPosition = Vector3.new(nextX, targetY, nextZ)
+                local nextPosition = Vector3.new(nextX, smoothY, nextZ)
                 model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
             end)
             
