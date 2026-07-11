@@ -45,7 +45,7 @@ local function notif(...)
 end
 
 run(function()
-	-- 🌟 【重要修正】vapeの初期化完了を非同期に待つことで、Main.luaとの競合を完全に防ぎます
+	-- vapeの初期化完了を非同期に待つことで、Main.luaとの競合を完全に防ぎます
 	local vape = shared.vape
 	if not vape then
 		repeat
@@ -99,7 +99,7 @@ run(function()
 end)
 
 run(function()
-	-- 🌟 【重要修正】vape と entitylib の初期化完了を非同期に待ちます
+	-- vape と entitylib の初期化完了を非同期に待ちます
 	local vape = shared.vape
 	if not vape then
 		repeat
@@ -124,32 +124,47 @@ run(function()
 	end
 
 	entitylib.getUpdateConnections = function(ent)
-		return {
-			ent.Player.HealthValue:GetPropertyChangedSignal('Value')
-		}
+		local connections = {}
+		local healthVal = ent.Player:FindFirstChild('HealthValue') or ent.Player:WaitForChild('HealthValue', 5)
+		if healthVal then
+			table.insert(connections, healthVal:GetPropertyChangedSignal('Value'))
+		end
+		return connections
 	end
 
 	entitylib.addEntity = function(char, plr, teamfunc)
 		if not char then return end
 
+		-- ローカルプレイヤーのキャラクター処理 (Workspace/LocalCharacter_[Username])
 		if plr == lplr then
-			local hum = {GetState = function() end, Health = 100}
-			local humrootpart = gameCamera.CameraSubject
+			local charInstance = typeof(char) == "Instance" and char or workspace:FindFirstChild("LocalCharacter_" .. lplr.Name)
+			local hum = (charInstance and charInstance:FindFirstChildOfClass('Humanoid')) or {GetState = function() end, Health = 100}
+			local humrootpart = (charInstance and (charInstance:FindFirstChild('Torso') or charInstance:FindFirstChild('HumanoidRootPart'))) or gameCamera.CameraSubject
+			local head = (charInstance and charInstance:FindFirstChild('Head')) or humrootpart
 
 			local entity = {
 				Connections = {},
-				Character = char,
+				Character = charInstance,
 				Health = 100,
-				Head = humrootpart,
+				Head = head,
 				Humanoid = hum,
 				HumanoidRootPart = humrootpart,
 				HipHeight = 5,
 				MaxHealth = 100,
-				NPC = plr == nil,
+				NPC = false,
 				Player = plr,
 				RootPart = humrootpart,
 				TeamCheck = teamfunc
 			}
+
+			local healthVal = plr:FindFirstChild('HealthValue')
+			if healthVal then
+				entity.Health = healthVal.Value
+				table.insert(entity.Connections, healthVal:GetPropertyChangedSignal('Value'):Connect(function()
+					entity.Health = healthVal.Value
+					entitylib.Events.EntityUpdated:Fire(entity)
+				end))
+			end
 
 			entitylib.character = entity
 			entitylib.isAlive = true
@@ -157,9 +172,10 @@ run(function()
 			return
 		end
 
+		-- 他のプレイヤーのキャラクター処理 (Workspace/OtherCharacters/[Username]_FakeCharacter)
 		entitylib.EntityThreads[char] = task.spawn(function()
 			local hum = waitForChildOfType(char, 'Humanoid', 10)
-			local humrootpart = char:WaitForChild('Torso', 10)
+			local humrootpart = char:WaitForChild('Torso', 10) or char:WaitForChild('HumanoidRootPart', 10)
 			local head = char:WaitForChild('Head', 10) or humrootpart
 			local val = plr:WaitForChild('HealthValue', 10)
 
@@ -167,11 +183,11 @@ run(function()
 				local entity = {
 					Connections = {},
 					Character = char,
-					Health = plr.HealthValue.Value,
+					Health = val and val.Value or 100,
 					Head = head,
 					Humanoid = hum,
 					HumanoidRootPart = humrootpart,
-					Hitbox = char.PlayerHitbox,
+					Hitbox = char:FindFirstChild('PlayerHitbox') or char,
 					HipHeight = 3,
 					MaxHealth = 100,
 					NPC = plr == nil,
@@ -183,7 +199,7 @@ run(function()
 				entity.Targetable = entitylib.targetCheck(entity)
 				for _, v in entitylib.getUpdateConnections(entity) do
 					table.insert(entity.Connections, v:Connect(function()
-						entity.Health = plr.HealthValue.Value
+						entity.Health = val and val.Value or 100
 						entitylib.Events.EntityUpdated:Fire(entity)
 					end))
 				end
@@ -202,27 +218,38 @@ run(function()
 	entitylib.start = function()
 		oldstart()
 		if entitylib.Running then
-			table.insert(entitylib.Connections, gameCamera:GetPropertyChangedSignal('CameraSubject'):Connect(function()
-				if gameCamera.CameraSubject then
-					entitylib.addEntity(true, lplr)
+			-- 1. ローカルプレイヤーのキャラクター検知 (Workspace/LocalCharacter_[Username])
+			local localCharName = "LocalCharacter_" .. lplr.Name
+			
+			table.insert(entitylib.Connections, workspace.ChildAdded:Connect(function(child)
+				if child.Name == localCharName then
+					entitylib.addEntity(child, lplr)
 				end
 			end))
 
-			if gameCamera.CameraSubject then
-				entitylib.addEntity(true, lplr)
+			local initialLocalChar = workspace:FindFirstChild(localCharName)
+			if initialLocalChar then
+				entitylib.addEntity(initialLocalChar, lplr)
 			end
 
-			table.insert(entitylib.Connections, workspace.OtherCharacters.ChildAdded:Connect(function(ent)
-				local plr = playersService:FindFirstChild(ent.Name:sub(1, #ent.Name - 14))
-				if plr then
-					entitylib.refreshEntity(ent, plr)
-				end
-			end))
+			-- 2. 他のプレイヤーのキャラクター検知 (Workspace/OtherCharacters内の変更監視)
+			local otherCharacters = workspace:WaitForChild("OtherCharacters", 10) or workspace:FindFirstChild("OtherCharacters")
+			if otherCharacters then
+				table.insert(entitylib.Connections, otherCharacters.ChildAdded:Connect(function(ent)
+					-- 末尾の "_FakeCharacter" (14文字) を切り捨ててプレイヤー名を取得
+					local plrName = ent.Name:sub(1, #ent.Name - 14)
+					local plr = playersService:FindFirstChild(plrName)
+					if plr then
+						entitylib.refreshEntity(ent, plr)
+					end
+				end))
 
-			for _, ent in workspace.OtherCharacters:GetChildren() do
-				local plr = playersService:FindFirstChild(ent.Name:sub(1, #ent.Name - 14))
-				if plr then
-					entitylib.refreshEntity(ent, plr)
+				for _, ent in otherCharacters:GetChildren() do
+					local plrName = ent.Name:sub(1, #ent.Name - 14)
+					local plr = playersService:FindFirstChild(plrName)
+					if plr then
+						entitylib.refreshEntity(ent, plr)
+					end
 				end
 			end
 		end
@@ -231,7 +258,7 @@ run(function()
 	entitylib.start()
 end)
 
--- 🌟 【重要修正】非同期に待機し、安全に不要モジュールをクリーンアップ
+-- 非同期に待機し、安全に不要モジュールをクリーンアップ
 task.spawn(function()
 	local vape = shared.vape
 	if not vape then
