@@ -9,7 +9,7 @@ local default_uipallet = {
     Main  = Color3.fromRGB(26, 25, 26),
     Text  = Color3.fromRGB(200, 200, 200),
     Font  = Enum.Font.SourceSans,
-    Tween = TweenInfo.new(0.16, Enum.EasingStyle.QuadOut) -- スムーズなアニメーション用のイージング
+    Tween = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) -- 🌟 修正：正しいEnum指定に修正
 }
 
 local function getTableSize(t)
@@ -217,7 +217,7 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
             childrenFrame.Parent = button
             self.DropdownChildren = childrenFrame
 
-            -- UIListLayout による整列（インデックス手動計算の廃止）
+            -- UIListLayout による整列
             local listLayout = Instance.new("UIListLayout")
             listLayout.SortOrder = Enum.SortOrder.LayoutOrder
             listLayout.Parent = childrenFrame
@@ -271,7 +271,7 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
             -- サイズの展開アニメーション
             tweenProperty(dropdown, { Size = UDim2.new(1, 0, 0, expandedHeight) })
 
-            -- 【新規】外側クリック時の閉じ処理バインド
+            -- 外側クリック時の閉じ処理バインド
             disconnectOutsideClick()
             self.OutsideClickConnection = UserInputService.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -281,7 +281,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
                     local x1, y1 = absPos.X, absPos.Y
                     local x2, y2 = x1 + dropdown.AbsoluteSize.X, y1 + dropdown.AbsoluteSize.Y
                     
-                    -- クリックされた領域がドロップダウン全体の矩形外であった場合に閉じる
                     local isInside = mousePos.X >= x1 and mousePos.X <= x2 and mousePos.Y >= y1 and mousePos.Y <= y2
                     if not isInside then
                         self:SetValue(self.Value, false)
