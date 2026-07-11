@@ -1,9 +1,14 @@
 -- src/games/1_8arena/modules/blatant/Speed.lua
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+
+local lplr = Players.LocalPlayer
+local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement using TPWalk (CFrame teleportation).",
+    Description = "Increases your movement using CFrame Pivot TPWalk.",
     TargetGame = "1_8arena"
 }
 
@@ -13,11 +18,49 @@ Speed.Settings = {
     AutoJump = false
 }
 
--- UIパラメータのプレースホルダー
+-- UIパラメータ用のプレースホルダー
 local Value = { Value = 30 }
 local AutoJump = { Enabled = false }
 
 local moduleInstance = nil
+
+-- デバイスを問わず現在の移動方向を安全に算出する関数
+local function getMovementDirection()
+    -- 1. init.lua が提供するマルチデバイス対応の計算ベクトルを最優先で使用
+    local calcMoveVec = getgenv().calculateMoveVector
+    if calcMoveVec then
+        local success, vec = pcall(calcMoveVec)
+        if success and vec and vec.Magnitude > 0 then
+            return vec
+        end
+    end
+    
+    -- 2. 上記が利用できない場合、キーボード（WASD）とカメラ向きによるフォールバック計算
+    local look = Vector3.new(gameCamera.CFrame.LookVector.X, 0, gameCamera.CFrame.LookVector.Z)
+    local right = Vector3.new(gameCamera.CFrame.RightVector.X, 0, gameCamera.CFrame.RightVector.Z)
+    if look.Magnitude > 0 then look = look.Unit end
+    if right.Magnitude > 0 then right = right.Unit end
+    
+    local dir = Vector3.zero
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + look end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - look end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - right end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + right end
+    
+    return dir.Magnitude > 0 and dir.Unit or Vector3.zero
+end
+
+-- 安全にキャラクターモデルを特定する関数
+local function getLocalCharacterModel(entitylib)
+    -- 1. entitylib から直接キャラクターのモデルを取得
+    if entitylib and entitylib.isAlive and entitylib.character then
+        if typeof(entitylib.character.Character) == "Instance" then
+            return entitylib.character.Character
+        end
+    end
+    -- 2. entitylib が遅延している場合のフォールバック（1_8arena専用 ＋ 通常Robloxモデル）
+    return workspace:FindFirstChild("LocalCharacter_" .. lplr.Name) or lplr.Character
+end
 
 function Speed.Init(moduleObj)
     moduleInstance = moduleObj
@@ -25,7 +68,7 @@ function Speed.Init(moduleObj)
     _G.vapeModules = _G.vapeModules or {}
     _G.vapeModules[Speed.Name] = moduleObj
 
-    -- スライダーUIの作成 (TPWalkの移動速度)
+    -- スライダーUIの生成（最大150スタッド/秒までサポート）
     Value = moduleObj:CreateSlider({
         Name = "Speed",
         Min = 1,
@@ -39,7 +82,7 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- オートジャンプトグルの作成
+    -- オートジャンプトグルの生成
     AutoJump = moduleObj:CreateToggle({
         Name = "AutoJump",
         Default = Speed.Settings.AutoJump or false,
@@ -51,52 +94,45 @@ end
 
 function Speed.Callback(enabled)
     if enabled then
-        print("[Speed Debug] TPWalk Module Enabled.")
+        print("[Speed Debug] CFrame Pivot TPWalk Enabled.")
         
         local connection
         
         connection = RunService.PreSimulation:Connect(function(dt)
-            -- 共通の vape / entitylib ライブラリを安全に動的取得
             local vape = shared.vape or _G.mainapi
             local entitylib = vape and vape.Libraries and vape.Libraries.entity
-            local calcMoveVec = getgenv().calculateMoveVector or calculateMoveVector
-
-            -- ライブラリや計算関数が未ロードの場合は処理をスキップ
-            if not entitylib or not calcMoveVec then
-                return
-            end
-
-            -- entitylib を通じてローカルプレイヤーが生存しているか、キャラクターが紐づいているか確認
-            if not entitylib.isAlive or not entitylib.character then
-                return
-            end
-
-            local character = entitylib.character
-            local root = character.RootPart
-            local humanoid = character.Humanoid
-
-            if not root then
+            
+            -- 移動対象となるキャラクターモデルの安全な取得
+            local model = getLocalCharacterModel(entitylib)
+            if not model then
                 return
             end
 
             local success, err = pcall(function()
-                -- 入力方向ベクトルの取得
-                local movevec = calcMoveVec()
-                if movevec.Magnitude > 0 then
-                    -- TPWalk実行: デルタタイム(dt)を乗算してフレームレート依存のない滑らかな移動を実現
-                    -- 速度設定値の大きさに応じたCFrameのテレポート加算を行います
-                    root.CFrame = root.CFrame + (movevec * Value.Value * dt)
+                -- 入力された移動方向を取得
+                local dir = getMovementDirection()
+                if dir.Magnitude > 0 then
+                    -- 現在のピボットCFrameを取得
+                    local cur = model:GetPivot()
+                    
+                    -- 🌟 経過時間(dt)を掛け合わせ、FPSに依存しない正確な速度 (Value.Value スタッド/秒) で移動位置を計算
+                    local nextPosition = cur.Position + dir * (Value.Value * dt)
+                    
+                    -- 元の向き成分 (cur - cur.Position) を乗算してキャラクターの角度を崩さずにモデル全体を移動
+                    model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
 
-                    -- オートジャンプが有効な場合の処理
+                    -- オートジャンプ処理
                     if AutoJump.Enabled then
-                        -- 接地状態の判定 (FloorMaterial を使用)
-                        local onground = true
-                        if humanoid and typeof(humanoid) == "Instance" and humanoid:IsA("Humanoid") then
-                            onground = humanoid.FloorMaterial ~= Enum.Material.Air
-                        end
-
-                        if onground then
-                            -- 上方向の物理速度を適用してジャンプを発生させます
+                        local humanoid = model:FindFirstChildOfClass("Humanoid")
+                        local root = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
+                        
+                        if humanoid then
+                            -- 接地判定を確認し標準ジャンプ処理を実行
+                            if humanoid.FloorMaterial ~= Enum.Material.Air then
+                                humanoid.Jump = true
+                            end
+                        elseif root then
+                            -- カスタムキャラクター用物理フォールバック（垂直速度の変更）
                             root.AssemblyLinearVelocity = Vector3.new(
                                 root.AssemblyLinearVelocity.X,
                                 50,
@@ -116,7 +152,7 @@ function Speed.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[Speed Debug] TPWalk Module Disabled.")
+        print("[Speed Debug] CFrame Pivot TPWalk Disabled.")
     end
 end
 
