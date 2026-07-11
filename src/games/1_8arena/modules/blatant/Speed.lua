@@ -8,11 +8,11 @@ local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement with self-simulated Roblox-compliant BHop physics.",
+    Description = "Increases your movement with advanced CFrame physics.",
     TargetGame = "1_8arena"
 }
 
--- 初期設定値（Robloxの標準高度である 6.37スタッド に準拠したデフォルト値）
+-- 初期設定値
 Speed.Settings = {
     SpeedValue = 30,
     JumpHeight = 6,
@@ -60,19 +60,20 @@ local function getLocalCharacterModel(entitylib)
     return workspace:FindFirstChild("LocalCharacter_" .. lplr.Name) or lplr.Character
 end
 
--- キャラクターのPivotから地面までのオフセットを自動計測する関数
+-- 🌟 【修正】レイキャストによる空中起動バグを排除するため、アバターの関節構造から脚の高さを数学的に算出
 local function getPivotOffset(model)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    raycastParams.FilterDescendantsInstances = {model}
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+    local root = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
     
-    local pivot = model:GetPivot()
-    -- 20スタッド下方向にレイキャストして地面を検知
-    local result = workspace:Raycast(pivot.Position, Vector3.new(0, -20, 0), raycastParams)
-    if result then
-        return pivot.Position.Y - result.Position.Y
+    if humanoid and typeof(humanoid) == "Instance" and humanoid:IsA("Humanoid") then
+        if humanoid.RigType == Enum.RigType.R6 then
+            return 3.0 -- R6の腰の中心点から足元までの標準距離 (3 studs)
+        else
+            local rootSizeY = root and root.Size.Y or 2
+            return humanoid.HipHeight + (rootSizeY / 2) -- R15の標準接地高度
+        end
     end
-    return 3.0 -- 計測に失敗した場合の標準フォールバック
+    return 3.0
 end
 
 function Speed.Init(moduleObj)
@@ -98,8 +99,7 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- 🌟 2. 【新規】ジャンプ高度（Jump Height）指定スライダー
-    -- 物理計算式に直接代入される、目標高度（スタッド）を指定します
+    -- 2. ジャンプ高度（Jump Height）指定スライダー
     JumpHeight = moduleObj:CreateSlider({
         Name = "Jump Height",
         Min = 1,
@@ -134,7 +134,7 @@ function Speed.Callback(enabled)
             tostring(AutoJump.Enabled)
         ))
         
-        -- スパム防止および物理システム用のローカルステート
+        -- スパム防止バッファ
         local modelNotFoundLogged = false
         local characterFoundLogged = false
         local rootNotFoundLogged = false
@@ -142,8 +142,12 @@ function Speed.Callback(enabled)
         
         -- 自作物理ステート変数
         local verticalVelocity = 0
+        local gravity = 140.0     -- 重力：ジャンプのアーク（滑らかさ）を極限までぬるぬるにする調整値
         local pivotOffset = 3.0   -- アバターに応じた地面までのオフセット
         local measuredOffset = false
+        
+        -- 🌟 【新規】真の物理座標の保管用ステート（Lerpによる減速を防ぐ）
+        local rawY = nil
         
         local connection
         
@@ -161,16 +165,17 @@ function Speed.Callback(enabled)
                 return
             end
             
-            -- キャラクター検知および高さオフセットの自動計測
+            -- キャラクター検知および高さオフセットの自動適用
             if not characterFoundLogged then
                 characterFoundLogged = true
                 modelNotFoundLogged = false
                 measuredOffset = true
                 pivotOffset = getPivotOffset(model)
-                print(string.format("[Speed Debug] Model loaded: %s | Measured Ground Offset: %.3f studs", model.Name, pivotOffset))
+                print(string.format("[Speed Debug] Model loaded: %s | Active Ground Offset: %.3f studs", model.Name, pivotOffset))
             end
 
             local root = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
+            local humanoid = model:FindFirstChildOfClass("Humanoid")
             if not root then
                 if not rootNotFoundLogged then
                     rootNotFoundLogged = true
@@ -196,49 +201,50 @@ function Speed.Callback(enabled)
 
                 local cur = model:GetPivot()
 
+                -- 🌟 【新規】物理座標の初期化、または移動停止・テレポート・落下の同期保護
+                if not rawY or not isMoving or math.abs(rawY - cur.Position.Y) > 5 then
+                    rawY = cur.Position.Y
+                end
+
                 -- 1. 水平方向（X, Z）の移動計算
                 local nextX = cur.Position.X + dir.X * (Value.Value * dt)
                 local nextZ = cur.Position.Z + dir.Z * (Value.Value * dt)
 
-                -- 🌟 リアルタイムにワールドの重力定数を取得してシミュレーションに反映
-                local currentGravity = workspace.Gravity
-
                 -- 2. 垂直方向（Y）の自作重力演算 (V = V - g * dt)
-                verticalVelocity = verticalVelocity - (currentGravity * dt)
-                local calculatedY = cur.Position.Y + (verticalVelocity * dt)
+                -- 🌟 【重要修正】計算はすべて「未補間の rawY」に直接蓄積させ、運動エネルギーの減衰を防ぎます
+                verticalVelocity = verticalVelocity - (gravity * dt)
+                rawY = rawY + (verticalVelocity * dt)
 
-                -- 3. 自作接地判定（レイキャスト）
+                -- 3. 自作接地判定（真下へのショートレイキャスト）
                 local raycastParams = RaycastParams.new()
                 raycastParams.FilterType = Enum.RaycastFilterType.Exclude
                 raycastParams.FilterDescendantsInstances = {model}
                 
-                local rayStart = Vector3.new(nextX, calculatedY + 2, nextZ)
+                -- 移動先座標の少し上（2スタッド）から15スタッド下に向けて、地面との交差を判定
+                local rayStart = Vector3.new(nextX, rawY + 2, nextZ)
                 local rayResult = workspace:Raycast(rayStart, Vector3.new(0, -15, 0), raycastParams)
 
                 local groundY = nil
                 if rayResult then
+                    -- 地面の物理座標に自動計測したオフセットを乗せて「基準地面のCFrame Y」を決定
                     groundY = rayResult.Position.Y + pivotOffset
                 end
 
                 -- 計算上の高さが地面以下になった（着地した）場合の処理
-                if groundY and calculatedY <= groundY then
-                    calculatedY = groundY
+                if groundY and rawY <= groundY then
+                    rawY = groundY
                     verticalVelocity = 0 -- 落下速度の初期化
                     
-                    -- 地面にいて移動入力がある場合、Robloxの内部力学方程式を解いて必要な初速度を算出してバウンド
+                    -- 地面にいて、かつ移動入力がある場合は次のバニーホップを即座にシミュレート
                     if AutoJump.Enabled and isMoving then
-                        -- 🌟 等加速度運動の公式: V = math.sqrt(2 * g * H)
-                        verticalVelocity = math.sqrt(2 * currentGravity * JumpHeight.Value)
-                        print(string.format(
-                            "[Speed Debug] [CFrame BHop] Ground hit. Jump triggered. Gravity: %.1f | Calc Velocity: %.2f studs/s",
-                            currentGravity,
-                            verticalVelocity
-                        ))
+                        -- 等加速度運動の公式: V = math.sqrt(2 * g * H)
+                        verticalVelocity = math.sqrt(2 * gravity * JumpHeight.Value)
                     end
                 end
 
-                -- 🌟 【ぬるぬる化】指数移動平均（Exponential Moving Average）による垂直座標の超平滑化
-                local smoothY = cur.Position.Y + (calculatedY - cur.Position.Y) * (1 - math.exp(-22 * dt))
+                -- 🌟 【ぬるぬる化】真の物理座標 (rawY) に向けて、現在のモデル表示座標を滑らかに補間
+                -- 物理計算自体を邪魔しないため、完全なエネルギー保存を維持したまま究極の滑らかさを実現
+                local smoothY = cur.Position.Y + (rawY - cur.Position.Y) * (1 - math.exp(-22 * dt))
 
                 -- 4. 計算した次フレームの3次元座標と回転を合わせてモデルを移動
                 local nextPosition = Vector3.new(nextX, smoothY, nextZ)
