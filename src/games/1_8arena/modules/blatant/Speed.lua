@@ -8,25 +8,19 @@ local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement with custom game-tick, velocity, and CFrame teleportation.",
+    Description = "Increases your movement using FPS-independent TPWalk.",
     TargetGame = "1_8arena"
 }
 
--- 初期設定値テーブル（1_8arenaで確実に動く "Tick" をデフォルトに設定）
+-- 初期設定値テーブル
 Speed.Settings = {
-    Method = "Tick",
     SpeedValue = 30,
     AutoJump = true
 }
 
 -- UIコンポーネント用プレースホルダー
-local Method = { Value = "Tick" }
 local Value = { Value = 30 }
 local AutoJump = { Enabled = true }
-
--- 環境差を吸収した upvalue 取得関数
-local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
-local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
 local moduleInstance = nil
 
@@ -72,18 +66,7 @@ function Speed.Init(moduleObj)
     
     print("[Speed Init] Initializing UI components...")
 
-    -- 🌟 1. 移動方式を選択するドロップダウン (1_8arena用の Tick を含めてリニューアル)
-    Method = moduleObj:CreateDropdown({
-        Name = "Method",
-        List = {"Tick", "Velocity", "TPWalk"},
-        Default = Speed.Settings.Method or "Tick",
-        Function = function(val)
-            Speed.Settings.Method = val
-            print("[Speed UI] Method changed to: " .. tostring(val))
-        end
-    })
-
-    -- 2. 速度調整スライダー
+    -- 1. 速度調整スライダー
     Value = moduleObj:CreateSlider({
         Name = "Speed",
         Min = 1,
@@ -98,7 +81,7 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- 3. 自動ジャンプトグル
+    -- 2. 自動ジャンプトグル
     AutoJump = moduleObj:CreateToggle({
         Name = "BHop / AutoJump",
         Default = Speed.Settings.AutoJump,
@@ -112,8 +95,7 @@ end
 function Speed.Callback(enabled)
     if enabled then
         print(string.format(
-            "[Speed Debug] Module Enabled. Active settings: [Method: %s] [Speed: %s] [AutoJump: %s]",
-            tostring(Method.Value),
+            "[Speed Debug] TPWalk Enabled. Active settings: [Speed: %s] [AutoJump: %s]",
             tostring(Value.Value),
             tostring(AutoJump.Enabled)
         ))
@@ -122,16 +104,13 @@ function Speed.Callback(enabled)
         local modelNotFoundLogged = false
         local characterFoundLogged = false
         local rootNotFoundLogged = false
-        local activeArenaNotified = false
         local lastMovingState = nil
-        local lastActiveMethod = nil
         
         local connection
         
         connection = RunService.PreSimulation:Connect(function(dt)
             local vape = shared.vape or _G.mainapi
             local entitylib = vape and vape.Libraries and vape.Libraries.entity
-            local activeArena = getgenv().arena or arena
             
             local model = getLocalCharacterModel(entitylib)
             if not model then
@@ -143,7 +122,7 @@ function Speed.Callback(enabled)
                 return
             end
             
-            -- キャラクターが正常に検知された時の1回限りのログ
+            -- キャラクター検知時のログ
             if not characterFoundLogged then
                 characterFoundLogged = true
                 modelNotFoundLogged = false
@@ -165,71 +144,32 @@ function Speed.Callback(enabled)
                 local dir = getMovementDirection()
                 local isMoving = dir.Magnitude > 0
 
-                -- 移動状態（動いているか止まっているか）の変化を検知してログ出力
-                if isMoving ~= lastMovingState or Method.Value ~= lastActiveMethod then
+                -- 移動状態の変化検知用ログ
+                if isMoving ~= lastMovingState then
                     lastMovingState = isMoving
-                    lastActiveMethod = Method.Value
                     print(string.format(
-                        "[Speed Debug] State Update -> Mode: %s | IsMoving: %s (Dir: %s)",
-                        tostring(Method.Value),
+                        "[Speed Debug] TPWalk State Update -> IsMoving: %s (Dir: %s)",
                         tostring(isMoving),
                         tostring(dir)
                     ))
                 end
 
                 -- =========================================================
-                -- 方式 A: Tick (1_8arena 専用カスタム物理ループハック)
+                -- TPWalk (CFrameピボットテレポート方式)
                 -- =========================================================
-                if Method.Value == "Tick" then
-                    if activeArena and activeArena.MoveFunction and activeArena.TickFunction then
-                        activeArenaNotified = false
-                        local movedir = dir * Value.Value
-                        local onground = getupvalue(activeArena.MoveFunction, 4)
-                        local velocity = getupvalue(activeArena.TickFunction, 6)
+                if isMoving then
+                    local cur = model:GetPivot()
+                    -- FPSに依存しないよう経過時間(dt)を計算に乗じて等速化
+                    local nextPosition = cur.Position + dir * (Value.Value * dt)
+                    model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
 
-                        if onground ~= nil and velocity ~= nil then
-                            setupvalue(
-                                activeArena.TickFunction, 
-                                6, 
-                                Vector3.new(
-                                    movedir.X, 
-                                    AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, 
-                                    movedir.Z
-                                )
-                            )
-                        end
-                    else
-                        if not activeArenaNotified then
-                            activeArenaNotified = true
-                            warn("[Speed Debug] Custom Tick/Move functions not loaded yet. Waiting...")
-                        end
-                    end
-
-                -- =========================================================
-                -- 方式 B: Velocity (標準物理速度 & Strafe)
-                -- =========================================================
-                elseif Method.Value == "Velocity" then
-                    if isMoving then
-                        local targetVel = dir * Value.Value
-                        root.AssemblyLinearVelocity = Vector3.new(
-                            targetVel.X,
-                            root.AssemblyLinearVelocity.Y,
-                            targetVel.Z
-                        )
-                    else
-                        root.AssemblyLinearVelocity = Vector3.new(
-                            0,
-                            root.AssemblyLinearVelocity.Y,
-                            0
-                        )
-                    end
-
-                    -- 自動連続ジャンプ (BHop)
-                    if AutoJump.Enabled and isMoving then
+                    -- TPWalk実行中のジャンプ処理
+                    if AutoJump.Enabled then
                         local onground = false
                         if humanoid then
                             onground = humanoid.FloorMaterial ~= Enum.Material.Air
                         else
+                            -- Humanoidが存在しない場合の代替接地判定
                             local raycastParams = RaycastParams.new()
                             raycastParams.FilterType = Enum.RaycastFilterType.Exclude
                             raycastParams.FilterDescendantsInstances = {model}
@@ -238,50 +178,16 @@ function Speed.Callback(enabled)
                         end
 
                         if onground then
-                            print("[Speed Debug] [BHop] Ground detected. Triggering jump velocity.")
-                            root.AssemblyLinearVelocity = Vector3.new(
-                                root.AssemblyLinearVelocity.X,
-                                38,
-                                root.AssemblyLinearVelocity.Z
-                            )
-                        end
-                    end
-
-                -- =========================================================
-                -- 方式 C: TPWalk (CFrameピボットテレポート)
-                -- =========================================================
-                elseif Method.Value == "TPWalk" then
-                    if isMoving then
-                        local cur = model:GetPivot()
-                        -- FPSの影響を受けないように経過時間(dt)を計算に使用
-                        local nextPosition = cur.Position + dir * (Value.Value * dt)
-                        model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
-
-                        -- TPWalk時のオートジャンプ
-                        if AutoJump.Enabled then
-                            local onground = false
                             if humanoid then
-                                onground = humanoid.FloorMaterial ~= Enum.Material.Air
+                                print("[Speed Debug] [TPWalk] Ground detected. Triggering standard Jump.")
+                                humanoid.Jump = true
                             else
-                                local raycastParams = RaycastParams.new()
-                                raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                                raycastParams.FilterDescendantsInstances = {model}
-                                local result = workspace:Raycast(root.Position, Vector3.new(0, -3.5, 0), raycastParams)
-                                onground = result ~= nil
-                            end
-
-                            if onground then
-                                if humanoid then
-                                    print("[Speed Debug] [TPWalk] Ground detected. Triggering standard Jump.")
-                                    humanoid.Jump = true
-                                else
-                                    print("[Speed Debug] [TPWalk] Ground detected (No Humanoid). Triggering fallback jump velocity.")
-                                    root.AssemblyLinearVelocity = Vector3.new(
-                                        root.AssemblyLinearVelocity.X,
-                                        50,
-                                        root.AssemblyLinearVelocity.Z
-                                    )
-                                end
+                                print("[Speed Debug] [TPWalk] Ground detected (No Humanoid). Triggering fallback jump velocity.")
+                                root.AssemblyLinearVelocity = Vector3.new(
+                                    root.AssemblyLinearVelocity.X,
+                                    50,
+                                    root.AssemblyLinearVelocity.Z
+                                )
                             end
                         end
                     end
@@ -297,7 +203,7 @@ function Speed.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[Speed Debug] Module Disabled.")
+        print("[Speed Debug] TPWalk Disabled.")
     end
 end
 
