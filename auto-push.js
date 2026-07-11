@@ -1,8 +1,11 @@
 const chokidar = require('chokidar');
 const { execSync } = require('child_process');
 
+// 🌟 同期までの待機時間を設定（ミリ秒単位: 1000ms = 1秒）
+const SYNC_DELAY = 1000; 
+
 console.log('👀 プロジェクト全体の監視を開始しました。');
-console.log('💡 保存すると5秒後に自動でGitHubへ同期（プッシュ）します。 (Ctrl+C で停止)');
+console.log(`💡 保存すると${SYNC_DELAY / 1000}秒後に自動でGitHubへ同期（プッシュ）します。 (Ctrl+C で停止)`);
 
 let pushTimeout = null;
 
@@ -39,7 +42,7 @@ chokidar.watch('.', {
             // すべての変更を仮追加
             execSync('git add .', { stdio: 'ignore' });
 
-            // 🌟 【新規追加】変更差分があるかどうかを確認する処理
+            // 変更差分があるかどうかを確認する処理
             const status = execSync('git status --porcelain').toString().trim();
             if (status === '') {
                 console.log('\nℹ️ 変更がないため、GitHubへの送信をスキップします。\n');
@@ -53,5 +56,5 @@ chokidar.watch('.', {
         } catch (error) {
             console.error('\n❌ 送信失敗（コンフリクトまたはネット接続を確認してください）\n');
         }
-    }, 5000);
+    }, SYNC_DELAY); // 🌟 コメント記号を「//」に修正しました
 });
