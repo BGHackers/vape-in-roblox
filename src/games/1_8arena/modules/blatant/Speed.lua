@@ -121,9 +121,6 @@ function Speed.Callback(enabled)
                 local dir = getMovementDirection()
                 local isMoving = dir.Magnitude > 0
 
-                -- =========================================================
-                -- 方式 A: Velocity (マインクラフト風物理速度 & Strafe)
-                -- =========================================================
                 if Method.Value == "Velocity" then
                     if isMoving then
                         local targetVel = dir * Value.Value
