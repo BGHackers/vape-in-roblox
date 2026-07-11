@@ -8,18 +8,20 @@ local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement with self-simulated CFrame BHop physics.",
+    Description = "Increases your movement with self-simulated Roblox-compliant BHop physics.",
     TargetGame = "1_8arena"
 }
 
--- 初期設定値
+-- 初期設定値（Robloxの標準高度である 6.37スタッド に準拠したデフォルト値）
 Speed.Settings = {
     SpeedValue = 30,
+    JumpHeight = 6,
     AutoJump = true
 }
 
 -- UIコンポーネント用プレースホルダー
 local Value = { Value = 30 }
+local JumpHeight = { Value = 6 }
 local AutoJump = { Enabled = true }
 
 local moduleInstance = nil
@@ -96,7 +98,23 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- 2. 自動ジャンプトグル (BHop)
+    -- 🌟 2. 【新規】ジャンプ高度（Jump Height）指定スライダー
+    -- 物理計算式に直接代入される、目標高度（スタッド）を指定します
+    JumpHeight = moduleObj:CreateSlider({
+        Name = "Jump Height",
+        Min = 1,
+        Max = 25,
+        Default = Speed.Settings.JumpHeight or 6,
+        Suffix = function(val)
+            return val == 1 and "stud" or "studs"
+        end,
+        Function = function(val)
+            Speed.Settings.JumpHeight = val
+            print("[Speed UI] Jump Height adjusted to: " .. tostring(val) .. " studs")
+        end
+    })
+
+    -- 3. 自動ジャンプトグル (BHop)
     AutoJump = moduleObj:CreateToggle({
         Name = "BHop / AutoJump",
         Default = Speed.Settings.AutoJump,
@@ -110,21 +128,20 @@ end
 function Speed.Callback(enabled)
     if enabled then
         print(string.format(
-            "[Speed Debug] Pure CFrame BHop Enabled. Settings: [Speed: %s] [AutoJump: %s]",
+            "[Speed Debug] Pure CFrame BHop Enabled. Settings: [Speed: %s] [Target Height: %s] [AutoJump: %s]",
             tostring(Value.Value),
+            tostring(JumpHeight.Value),
             tostring(AutoJump.Enabled)
         ))
         
-        -- スパム防止および自作物理システム用のローカルステート
+        -- スパム防止および物理システム用のローカルステート
         local modelNotFoundLogged = false
         local characterFoundLogged = false
         local rootNotFoundLogged = false
         local lastMovingState = nil
         
-        -- 🌟 【ぬるぬる物理仕様調整】自作物理ステート変数
+        -- 自作物理ステート変数
         local verticalVelocity = 0
-        local gravity = 130.0     -- 重力：少し低くすることで滑らかな放物線を描きます（標準は196.2）
-        local jumpVelocity = 40.0  -- ジャンプ初速：重力とのバランスで自然な高さ（約6スタッド）になるよう調整
         local pivotOffset = 3.0   -- アバターに応じた地面までのオフセット
         local measuredOffset = false
         
@@ -183,22 +200,23 @@ function Speed.Callback(enabled)
                 local nextX = cur.Position.X + dir.X * (Value.Value * dt)
                 local nextZ = cur.Position.Z + dir.Z * (Value.Value * dt)
 
-                -- 2. 垂直方向（Y）の自作重力演算
-                verticalVelocity = verticalVelocity - (gravity * dt)
+                -- 🌟 リアルタイムにワールドの重力定数を取得してシミュレーションに反映
+                local currentGravity = workspace.Gravity
+
+                -- 2. 垂直方向（Y）の自作重力演算 (V = V - g * dt)
+                verticalVelocity = verticalVelocity - (currentGravity * dt)
                 local calculatedY = cur.Position.Y + (verticalVelocity * dt)
 
-                -- 3. 自作接地判定（真下へのショートレイキャスト）
+                -- 3. 自作接地判定（レイキャスト）
                 local raycastParams = RaycastParams.new()
                 raycastParams.FilterType = Enum.RaycastFilterType.Exclude
                 raycastParams.FilterDescendantsInstances = {model}
                 
-                -- 移動先座標の少し上（2スタッド）から15スタッド下に向けて、地面との交差を判定
                 local rayStart = Vector3.new(nextX, calculatedY + 2, nextZ)
                 local rayResult = workspace:Raycast(rayStart, Vector3.new(0, -15, 0), raycastParams)
 
                 local groundY = nil
                 if rayResult then
-                    -- 地面の物理座標に自動計測したオフセットを乗せて「基準地面のCFrame Y」を決定
                     groundY = rayResult.Position.Y + pivotOffset
                 end
 
@@ -207,16 +225,19 @@ function Speed.Callback(enabled)
                     calculatedY = groundY
                     verticalVelocity = 0 -- 落下速度の初期化
                     
-                    -- 地面にいて、かつ移動入力がある場合は次のバニーホップを即座にシミュレート
+                    -- 地面にいて移動入力がある場合、Robloxの内部力学方程式を解いて必要な初速度を算出してバウンド
                     if AutoJump.Enabled and isMoving then
-                        verticalVelocity = jumpVelocity
-                        print("[Speed Debug] [CFrame BHop] Ground hit. Automatically simulated jump force.")
+                        -- 🌟 等加速度運動の公式: V = math.sqrt(2 * g * H)
+                        verticalVelocity = math.sqrt(2 * currentGravity * JumpHeight.Value)
+                        print(string.format(
+                            "[Speed Debug] [CFrame BHop] Ground hit. Jump triggered. Gravity: %.1f | Calc Velocity: %.2f studs/s",
+                            currentGravity,
+                            verticalVelocity
+                        ))
                     end
                 end
 
                 -- 🌟 【ぬるぬる化】指数移動平均（Exponential Moving Average）による垂直座標の超平滑化
-                -- 1 - math.exp(-22 * dt) は、フレームレートに依存せず常に滑らかなクッションを生み出す物理フィルターです。
-                -- テイクオフやランディング時の不自然なカクつきや、地面レイキャストの小刻みなブレを完全に吸着します。
                 local smoothY = cur.Position.Y + (calculatedY - cur.Position.Y) * (1 - math.exp(-22 * dt))
 
                 -- 4. 計算した次フレームの3次元座標と回転を合わせてモデルを移動
