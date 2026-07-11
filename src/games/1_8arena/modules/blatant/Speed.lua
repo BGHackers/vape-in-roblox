@@ -4,20 +4,20 @@ local RunService = game:GetService("RunService")
 local Speed = {
     Name = "Speed",
     Description = "Increases your movement with various methods.",
-    TargetGame = "1_8arena" -- 🌟 1.8 Arenaでのみ自動ロード
+    TargetGame = "1_8arena" -- 1.8 Arenaでのみ自動ロード
 }
 
--- 🌟 【修正】削除してしまっていた設定値テーブルを復活させました
+-- 設定値の初期値
 Speed.Settings = {
     SpeedValue = 30,
     AutoJump = false
 }
 
--- 元のVapeコードに記述されている変数名に同期（ファイルローカルで初期定義）
+-- 各種UI要素のプレースホルダーオブジェクト
 local Value = { Value = 30 }
 local AutoJump = { Enabled = false }
 
--- 各種エクスプロイトの環境差を吸収して関数を確実に取得
+-- 環境に依存しない getupvalue / setupvalue の取得
 local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
 local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
@@ -29,7 +29,7 @@ function Speed.Init(moduleObj)
     _G.vapeModules = _G.vapeModules or {}
     _G.vapeModules[Speed.Name] = moduleObj
 
-    -- 🌟 元のテーブル形式パラメータ引数を100%サポートしてスライダーを生成
+    -- スライダーUIの生成
     Value = moduleObj:CreateSlider({
         Name = "Speed",
         Min = 1,
@@ -43,7 +43,7 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- 🌟 元のテーブル形式パラメータ引数を100%サポートしてトグルを生成
+    -- トグルUIの生成
     AutoJump = moduleObj:CreateToggle({
         Name = "AutoJump",
         Default = Speed.Settings.AutoJump or false,
@@ -61,11 +61,11 @@ function Speed.Callback(enabled)
         local connection
         
         connection = RunService.PreSimulation:Connect(function()
-            -- 🌟 init.lua によって getgenv() に公開された変数を直接読み込みます
+            -- グローバル環境から最新の arena データおよび計算関数を取得
             local activeArena = getgenv().arena or arena
             local calcMoveVec = getgenv().calculateMoveVector or calculateMoveVector
 
-            -- 万が一の未ロード時エラーを防ぐセーフガード
+            -- エクスプロイト環境、あるいは初期化関数の未ロード検知用セーフガード
             if not getupvalue or not setupvalue or not activeArena or not calcMoveVec then
                 if not diagnosticsLogged then
                     diagnosticsLogged = true
@@ -80,21 +80,28 @@ function Speed.Callback(enabled)
                 return
             end
 
+            -- 取得元の関数が存在しない場合はエラー防止のため一度スキップ
+            if not activeArena.MoveFunction or not activeArena.TickFunction then
+                return
+            end
+
             local success, err = pcall(function()
-                -- 🌟 元のオリジナルVapeと完全に同一のスマートな物理ハックを実行
                 local movedir = calcMoveVec() * Value.Value
                 local onground = getupvalue(activeArena.MoveFunction, 4)
                 local velocity = getupvalue(activeArena.TickFunction, 6)
 
-                setupvalue(
-                    activeArena.TickFunction, 
-                    6, 
-                    Vector3.new(
-                        movedir.X, 
-                        AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, 
-                        movedir.Z
+                -- 取得したアップバリューに異常がない場合のみ書き換えを実行
+                if onground ~= nil and velocity ~= nil then
+                    setupvalue(
+                        activeArena.TickFunction, 
+                        6, 
+                        Vector3.new(
+                            movedir.X, 
+                            AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, 
+                            movedir.Z
+                        )
                     )
-                )
+                end
             end)
             
             if not success then
