@@ -3,23 +3,19 @@ local RunService = game:GetService("RunService")
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement with various methods.",
-    TargetGame = "1_8arena" -- 1.8 Arenaでのみ自動ロード
+    Description = "Increases your movement using TPWalk (CFrame teleportation).",
+    TargetGame = "1_8arena"
 }
 
--- 設定値の初期値
+-- 設定値テーブル
 Speed.Settings = {
     SpeedValue = 30,
     AutoJump = false
 }
 
--- 各種UI要素のプレースホルダーオブジェクト
+-- UIパラメータのプレースホルダー
 local Value = { Value = 30 }
 local AutoJump = { Enabled = false }
-
--- 環境に依存しない getupvalue / setupvalue の取得
-local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
-local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
 local moduleInstance = nil
 
@@ -29,11 +25,11 @@ function Speed.Init(moduleObj)
     _G.vapeModules = _G.vapeModules or {}
     _G.vapeModules[Speed.Name] = moduleObj
 
-    -- スライダーUIの生成
+    -- スライダーUIの作成 (TPWalkの移動速度)
     Value = moduleObj:CreateSlider({
         Name = "Speed",
         Min = 1,
-        Max = 90,
+        Max = 150,
         Default = Speed.Settings.SpeedValue or 30,
         Suffix = function(val)
             return val == 1 and "stud" or "studs"
@@ -43,7 +39,7 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- トグルUIの生成
+    -- オートジャンプトグルの作成
     AutoJump = moduleObj:CreateToggle({
         Name = "AutoJump",
         Default = Speed.Settings.AutoJump or false,
@@ -55,52 +51,59 @@ end
 
 function Speed.Callback(enabled)
     if enabled then
-        print("[Speed Debug] Module Enabled.")
+        print("[Speed Debug] TPWalk Module Enabled.")
         
-        local diagnosticsLogged = false
         local connection
         
-        connection = RunService.PreSimulation:Connect(function()
-            -- グローバル環境から最新の arena データおよび計算関数を取得
-            local activeArena = getgenv().arena or arena
+        connection = RunService.PreSimulation:Connect(function(dt)
+            -- 共通の vape / entitylib ライブラリを安全に動的取得
+            local vape = shared.vape or _G.mainapi
+            local entitylib = vape and vape.Libraries and vape.Libraries.entity
             local calcMoveVec = getgenv().calculateMoveVector or calculateMoveVector
 
-            -- エクスプロイト環境、あるいは初期化関数の未ロード検知用セーフガード
-            if not getupvalue or not setupvalue or not activeArena or not calcMoveVec then
-                if not diagnosticsLogged then
-                    diagnosticsLogged = true
-                    warn("⚠️ --- Speed Diagnostics Failure ---")
-                    warn("  - getupvalue function exists:", getupvalue ~= nil)
-                    warn("  - setupvalue function exists:", setupvalue ~= nil)
-                    warn("  - activeArena table exists:", activeArena ~= nil)
-                    warn("  - calculateMoveVector exists:", calcMoveVec ~= nil)
-                    warn("  Speed hack skipped to prevent client crash.")
-                    warn("-------------------------------------")
-                end
+            -- ライブラリや計算関数が未ロードの場合は処理をスキップ
+            if not entitylib or not calcMoveVec then
                 return
             end
 
-            -- 取得元の関数が存在しない場合はエラー防止のため一度スキップ
-            if not activeArena.MoveFunction or not activeArena.TickFunction then
+            -- entitylib を通じてローカルプレイヤーが生存しているか、キャラクターが紐づいているか確認
+            if not entitylib.isAlive or not entitylib.character then
+                return
+            end
+
+            local character = entitylib.character
+            local root = character.RootPart
+            local humanoid = character.Humanoid
+
+            if not root then
                 return
             end
 
             local success, err = pcall(function()
-                local movedir = calcMoveVec() * Value.Value
-                local onground = getupvalue(activeArena.MoveFunction, 4)
-                local velocity = getupvalue(activeArena.TickFunction, 6)
+                -- 入力方向ベクトルの取得
+                local movevec = calcMoveVec()
+                if movevec.Magnitude > 0 then
+                    -- TPWalk実行: デルタタイム(dt)を乗算してフレームレート依存のない滑らかな移動を実現
+                    -- 速度設定値の大きさに応じたCFrameのテレポート加算を行います
+                    root.CFrame = root.CFrame + (movevec * Value.Value * dt)
 
-                -- 取得したアップバリューに異常がない場合のみ書き換えを実行
-                if onground ~= nil and velocity ~= nil then
-                    setupvalue(
-                        activeArena.TickFunction, 
-                        6, 
-                        Vector3.new(
-                            movedir.X, 
-                            AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, 
-                            movedir.Z
-                        )
-                    )
+                    -- オートジャンプが有効な場合の処理
+                    if AutoJump.Enabled then
+                        -- 接地状態の判定 (FloorMaterial を使用)
+                        local onground = true
+                        if humanoid and typeof(humanoid) == "Instance" and humanoid:IsA("Humanoid") then
+                            onground = humanoid.FloorMaterial ~= Enum.Material.Air
+                        end
+
+                        if onground then
+                            -- 上方向の物理速度を適用してジャンプを発生させます
+                            root.AssemblyLinearVelocity = Vector3.new(
+                                root.AssemblyLinearVelocity.X,
+                                50,
+                                root.AssemblyLinearVelocity.Z
+                            )
+                        end
+                    end
                 end
             end)
             
@@ -113,7 +116,7 @@ function Speed.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[Speed Debug] Module Disabled.")
+        print("[Speed Debug] TPWalk Module Disabled.")
     end
 end
 
