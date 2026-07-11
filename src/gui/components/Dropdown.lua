@@ -12,7 +12,7 @@ local default_uipallet = {
     Tween = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 }
 
--- 【修正】どの関数からでも安全に呼び出せるよう、tweenProperty をファイル共通のローカル関数として定義
+-- どの関数からでも安全に呼び出せるファイル共通のローカル関数
 local function tweenProperty(self, instance, properties)
     local active_tween = (tween and tween.Tween) and tween or nil
     if active_tween then
@@ -82,29 +82,22 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     -- 接続イベント安全管理用
     self.OutsideClickConnection = nil
 
-    -- ベースボタン枠（初期の閉じている高さ: 40）
-    local dropdown = Instance.new("TextButton")
+    -- 🌟 【重要修正】親枠を TextButton から透明な Frame に変更し、子要素への入力干渉を防ぎます
+    local dropdown = Instance.new("Frame")
     dropdown.Name = name .. "DropdownSetting"
     dropdown.Size = UDim2.new(1, 0, 0, 40)
-    local parentColor = (parent and parent:IsA("GuiObject")) and parent.BackgroundColor3 or active_uipallet.Main
-    dropdown.BackgroundColor3 = optionsettings.Darker and active_color.Dark(parentColor, 0.02) or parentColor
-    dropdown.BorderSizePixel = 0
-    dropdown.AutoButtonColor = false
+    dropdown.BackgroundTransparency = 1
     dropdown.Visible = optionsettings.Visible == nil or optionsettings.Visible
-    dropdown.Text = ""
-    dropdown.ClipsDescendants = true -- スライド時に中身がはみ出ないようにクリップ
+    dropdown.ClipsDescendants = true -- スライド展開時に中身をクリップ
     dropdown.Parent = parent
 
-    if addTooltip and (optionsettings.Tooltip or name) then
-        addTooltip(dropdown, optionsettings.Tooltip or name)
-    end
-
-    -- 背景枠 (BKG) - 余白を 12px に統一
+    -- 🌟 【重要修正】背景枠 (BKG) を 展開時も常に固定の高さ (31px) に設定します
     local bkg = Instance.new("Frame")
     bkg.Name = "BKG"
-    bkg.Size = UDim2.new(1, -24, 1, -9)
+    bkg.Size = UDim2.new(1, -24, 0, 31)
     bkg.Position = UDim2.fromOffset(12, 4)
-    bkg.BackgroundColor3 = active_color.Light(active_uipallet.Main, 0.034)
+    local parentColor = (parent and parent:IsA("GuiObject")) and parent.BackgroundColor3 or active_uipallet.Main
+    bkg.BackgroundColor3 = optionsettings.Darker and active_color.Dark(parentColor, 0.02) or active_color.Light(active_uipallet.Main, 0.034)
     bkg.BorderSizePixel = 0
     bkg.ClipsDescendants = true
     bkg.Parent = dropdown
@@ -117,15 +110,14 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
         c.Parent = bkg
     end
 
-    -- メイン選択ボタン
+    -- 🌟 【重要修正】メインの開閉ボタンを 展開時も常に固定の高さ (29px) に維持します
     local button = Instance.new("TextButton")
     button.Name = "Dropdown"
-    button.Size = UDim2.new(1, -2, 1, -2)
+    button.Size = UDim2.new(1, -2, 0, 29)
     button.Position = UDim2.fromOffset(1, 1)
     button.BackgroundColor3 = active_uipallet.Main
     button.AutoButtonColor = false
     button.Text = ""
-    button.ClipsDescendants = true
     button.Parent = bkg
 
     if addCorner then
@@ -140,6 +132,11 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     buttonPadding.PaddingLeft = UDim.new(0, 12)
     buttonPadding.PaddingRight = UDim.new(0, 12)
     buttonPadding.Parent = button
+
+    -- ツールチップは実際にクリックできる button に登録
+    if addTooltip and (optionsettings.Tooltip or name) then
+        addTooltip(button, optionsettings.Tooltip or name)
+    end
 
     -- タイトルテキスト
     local title = Instance.new("TextLabel")
@@ -189,7 +186,7 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
             
             -- アイテム数に応じたスクロール切り替えロジック
             local listSize = #self.List
-            local maxVisibleItems = 6 -- 一度に表示する最大オプション数
+            local maxVisibleItems = 6
             local optionHeight = 26
             local useScroll = listSize > maxVisibleItems
             
@@ -206,15 +203,17 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
                 childrenFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120)
                 childrenFrame.BorderSizePixel = 0
                 childrenFrame.Active = true
+                childrenFrame.BackgroundTransparency = 1
             else
                 childrenFrame = Instance.new("Frame")
                 childrenFrame.Size = UDim2.new(1, 0, 0, childrenHeight)
+                childrenFrame.BackgroundTransparency = 1
             end
             
+            -- 🌟 【重要修正】選択肢フレームは button の中ではなく、親 Frame (dropdown) の直下に並列配置します
             childrenFrame.Name = "Children"
-            childrenFrame.Position = UDim2.fromOffset(0, 27)
-            childrenFrame.BackgroundTransparency = 1
-            childrenFrame.Parent = button
+            childrenFrame.Position = UDim2.fromOffset(12, 38)
+            childrenFrame.Parent = dropdown
             self.DropdownChildren = childrenFrame
 
             -- UIListLayout による整列
