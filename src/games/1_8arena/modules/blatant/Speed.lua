@@ -8,11 +8,11 @@ local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement using FPS-independent TPWalk.",
+    Description = "Increases your movement with TPWalk and custom-loop BHop.",
     TargetGame = "1_8arena"
 }
 
--- 初期設定値テーブル
+-- 初期設定値
 Speed.Settings = {
     SpeedValue = 30,
     AutoJump = true
@@ -21,6 +21,10 @@ Speed.Settings = {
 -- UIコンポーネント用プレースホルダー
 local Value = { Value = 30 }
 local AutoJump = { Enabled = true }
+
+-- 環境差を吸収した upvalue 取得関数
+local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
+local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
 local moduleInstance = nil
 
@@ -111,6 +115,7 @@ function Speed.Callback(enabled)
         connection = RunService.PreSimulation:Connect(function(dt)
             local vape = shared.vape or _G.mainapi
             local entitylib = vape and vape.Libraries and vape.Libraries.entity
+            local activeArena = getgenv().arena or arena
             
             local model = getLocalCharacterModel(entitylib)
             if not model then
@@ -148,9 +153,10 @@ function Speed.Callback(enabled)
                 if isMoving ~= lastMovingState then
                     lastMovingState = isMoving
                     print(string.format(
-                        "[Speed Debug] TPWalk State Update -> IsMoving: %s (Dir: %s)",
+                        "[Speed Debug] TPWalk State Update -> IsMoving: %s (Dir: %s, dt: %.4f)",
                         tostring(isMoving),
-                        tostring(dir)
+                        tostring(dir),
+                        dt
                     ))
                 end
 
@@ -159,35 +165,34 @@ function Speed.Callback(enabled)
                 -- =========================================================
                 if isMoving then
                     local cur = model:GetPivot()
-                    -- FPSに依存しないよう経過時間(dt)を計算に乗じて等速化
+                    -- 🌟 水平方向(X, Z)のみテレポートし、垂直方向(Y)は物理演算に処理を委ねる
                     local nextPosition = cur.Position + dir * (Value.Value * dt)
                     model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
 
-                    -- TPWalk実行中のジャンプ処理
+                    -- 🌟 【重要修正】AutoJump (BHop) 処理
+                    -- 1_8arenaのカスタム物理ループ変数を書き換えてジャンプ力を付与します。
                     if AutoJump.Enabled then
-                        local onground = false
-                        if humanoid then
-                            onground = humanoid.FloorMaterial ~= Enum.Material.Air
-                        else
-                            -- Humanoidが存在しない場合の代替接地判定
-                            local raycastParams = RaycastParams.new()
-                            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                            raycastParams.FilterDescendantsInstances = {model}
-                            local result = workspace:Raycast(root.Position, Vector3.new(0, -3.5, 0), raycastParams)
-                            onground = result ~= nil
-                        end
+                        if activeArena and activeArena.MoveFunction and activeArena.TickFunction then
+                            -- 接地状態（onground）と現在のカスタム移動速度を安全に読み取り
+                            local success1, onground = pcall(getupvalue, activeArena.MoveFunction, 4)
+                            local success2, velocity = pcall(getupvalue, activeArena.TickFunction, 6)
 
-                        if onground then
+                            if success1 and success2 and onground and velocity then
+                                -- キャラクターが地面に接地している場合のみ、ゲームのカスタム物理ループにジャンプ力 (20) を書き込む
+                                pcall(setupvalue, activeArena.TickFunction, 6, Vector3.new(
+                                    velocity.X,
+                                    20, -- ゲーム独自の物理コントローラーに直接ジャンプ力を注入
+                                    velocity.Z
+                                ))
+                            end
+                        else
+                            -- 1_8arena以外のゲーム、またはカスタム関数がまだロードされていない場合の安全なフォールバック
+                            local onground = false
                             if humanoid then
-                                print("[Speed Debug] [TPWalk] Ground detected. Triggering standard Jump.")
+                                onground = humanoid.FloorMaterial ~= Enum.Material.Air
+                            end
+                            if onground and humanoid then
                                 humanoid.Jump = true
-                            else
-                                print("[Speed Debug] [TPWalk] Ground detected (No Humanoid). Triggering fallback jump velocity.")
-                                root.AssemblyLinearVelocity = Vector3.new(
-                                    root.AssemblyLinearVelocity.X,
-                                    50,
-                                    root.AssemblyLinearVelocity.Z
-                                )
                             end
                         end
                     end
