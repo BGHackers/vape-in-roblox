@@ -8,7 +8,7 @@ local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement with TPWalk and custom-loop BHop.",
+    Description = "Increases your movement with self-simulated CFrame BHop physics.",
     TargetGame = "1_8arena"
 }
 
@@ -21,10 +21,6 @@ Speed.Settings = {
 -- UIコンポーネント用プレースホルダー
 local Value = { Value = 30 }
 local AutoJump = { Enabled = true }
-
--- 環境差を吸収した upvalue 取得関数
-local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
-local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
 local moduleInstance = nil
 
@@ -62,6 +58,21 @@ local function getLocalCharacterModel(entitylib)
     return workspace:FindFirstChild("LocalCharacter_" .. lplr.Name) or lplr.Character
 end
 
+-- キャラクターのPivotから地面までのオフセットを自動計測する関数
+local function getPivotOffset(model)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {model}
+    
+    local pivot = model:GetPivot()
+    -- 20スタッド下方向にレイキャストして地面を検知
+    local result = workspace:Raycast(pivot.Position, Vector3.new(0, -20, 0), raycastParams)
+    if result then
+        return pivot.Position.Y - result.Position.Y
+    end
+    return 3.0 -- 計測に失敗した場合の標準フォールバック
+end
+
 function Speed.Init(moduleObj)
     moduleInstance = moduleObj
     
@@ -85,7 +96,7 @@ function Speed.Init(moduleObj)
         end
     })
 
-    -- 2. 自動ジャンプトグル
+    -- 2. 自動ジャンプトグル (BHop)
     AutoJump = moduleObj:CreateToggle({
         Name = "BHop / AutoJump",
         Default = Speed.Settings.AutoJump,
@@ -99,23 +110,29 @@ end
 function Speed.Callback(enabled)
     if enabled then
         print(string.format(
-            "[Speed Debug] TPWalk Enabled. Active settings: [Speed: %s] [AutoJump: %s]",
+            "[Speed Debug] Pure CFrame BHop Enabled. Settings: [Speed: %s] [AutoJump: %s]",
             tostring(Value.Value),
             tostring(AutoJump.Enabled)
         ))
         
-        -- スパム防止用の各種状態記録バッファ
+        -- スパム防止および自作物理システム用のローカルステート
         local modelNotFoundLogged = false
         local characterFoundLogged = false
         local rootNotFoundLogged = false
         local lastMovingState = nil
+        
+        -- 🌟 自作物理ステート変数
+        local verticalVelocity = 0
+        local gravity = 196.2     -- Roblox標準重力
+        local jumpVelocity = 50   -- Roblox標準ジャンプ初速
+        local pivotOffset = 3.0   -- アバターに応じた地面までのオフセット
+        local measuredOffset = false
         
         local connection
         
         connection = RunService.PreSimulation:Connect(function(dt)
             local vape = shared.vape or _G.mainapi
             local entitylib = vape and vape.Libraries and vape.Libraries.entity
-            local activeArena = getgenv().arena or arena
             
             local model = getLocalCharacterModel(entitylib)
             if not model then
@@ -127,19 +144,20 @@ function Speed.Callback(enabled)
                 return
             end
             
-            -- キャラクター検知時のログ
+            -- キャラクター検知および高さオフセットの自動計測
             if not characterFoundLogged then
                 characterFoundLogged = true
                 modelNotFoundLogged = false
-                print("[Speed Debug] Local character model found: " .. tostring(model.Name))
+                measuredOffset = true
+                pivotOffset = getPivotOffset(model)
+                print(string.format("[Speed Debug] Model loaded: %s | Measured Ground Offset: %.3f studs", model.Name, pivotOffset))
             end
 
             local root = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
-            local humanoid = model:FindFirstChildOfClass("Humanoid")
             if not root then
                 if not rootNotFoundLogged then
                     rootNotFoundLogged = true
-                    warn("[Speed Debug] Root part (Torso/HumanoidRootPart) not found inside the character model.")
+                    warn("[Speed Debug] Root part not found inside the character model.")
                 end
                 return
             end
@@ -149,54 +167,56 @@ function Speed.Callback(enabled)
                 local dir = getMovementDirection()
                 local isMoving = dir.Magnitude > 0
 
-                -- 移動状態の変化検知用ログ
+                -- 移動状態の変化検知ログ
                 if isMoving ~= lastMovingState then
                     lastMovingState = isMoving
                     print(string.format(
-                        "[Speed Debug] TPWalk State Update -> IsMoving: %s (Dir: %s, dt: %.4f)",
+                        "[Speed Debug] State Update -> IsMoving: %s (Dir: %s)",
                         tostring(isMoving),
-                        tostring(dir),
-                        dt
+                        tostring(dir)
                     ))
                 end
 
-                -- =========================================================
-                -- TPWalk (CFrameピボットテレポート方式)
-                -- =========================================================
-                if isMoving then
-                    local cur = model:GetPivot()
-                    -- 🌟 水平方向(X, Z)のみテレポートし、垂直方向(Y)は物理演算に処理を委ねる
-                    local nextPosition = cur.Position + dir * (Value.Value * dt)
-                    model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
+                local cur = model:GetPivot()
 
-                    -- 🌟 【重要修正】AutoJump (BHop) 処理
-                    -- 1_8arenaのカスタム物理ループ変数を書き換えてジャンプ力を付与します。
-                    if AutoJump.Enabled then
-                        if activeArena and activeArena.MoveFunction and activeArena.TickFunction then
-                            -- 接地状態（onground）と現在のカスタム移動速度を安全に読み取り
-                            local success1, onground = pcall(getupvalue, activeArena.MoveFunction, 4)
-                            local success2, velocity = pcall(getupvalue, activeArena.TickFunction, 6)
+                -- 1. 水平方向（X, Z）の移動計算
+                local nextX = cur.Position.X + dir.X * (Value.Value * dt)
+                local nextZ = cur.Position.Z + dir.Z * (Value.Value * dt)
 
-                            if success1 and success2 and onground and velocity then
-                                -- キャラクターが地面に接地している場合のみ、ゲームのカスタム物理ループにジャンプ力 (20) を書き込む
-                                pcall(setupvalue, activeArena.TickFunction, 6, Vector3.new(
-                                    velocity.X,
-                                    20, -- ゲーム独自の物理コントローラーに直接ジャンプ力を注入
-                                    velocity.Z
-                                ))
-                            end
-                        else
-                            -- 1_8arena以外のゲーム、またはカスタム関数がまだロードされていない場合の安全なフォールバック
-                            local onground = false
-                            if humanoid then
-                                onground = humanoid.FloorMaterial ~= Enum.Material.Air
-                            end
-                            if onground and humanoid then
-                                humanoid.Jump = true
-                            end
-                        end
+                -- 2. 垂直方向（Y）の自作重力演算
+                verticalVelocity = verticalVelocity - (gravity * dt)
+                local targetY = cur.Position.Y + (verticalVelocity * dt)
+
+                -- 3. 自作接地判定（真下へのショートレイキャスト）
+                local raycastParams = RaycastParams.new()
+                raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                raycastParams.FilterDescendantsInstances = {model}
+                
+                -- 移動先座標の少し上（2スタッド）から15スタッド下に向けて、地面との交差を判定
+                local rayStart = Vector3.new(nextX, targetY + 2, nextZ)
+                local rayResult = workspace:Raycast(rayStart, Vector3.new(0, -15, 0), raycastParams)
+
+                local groundY = nil
+                if rayResult then
+                    -- 地面の物理座標に自動計測したオフセットを乗せて「基準地面のCFrame Y」を決定
+                    groundY = rayResult.Position.Y + pivotOffset
+                end
+
+                -- 計算上の高さが地面以下になった（着地した）場合の処理
+                if groundY and targetY <= groundY then
+                    targetY = groundY
+                    verticalVelocity = 0 -- 落下速度の初期化
+                    
+                    -- 地面にいて、かつ移動入力がある場合は次のバニーホップを即座にシミュレート
+                    if AutoJump.Enabled and isMoving then
+                        verticalVelocity = jumpVelocity
+                        print("[Speed Debug] [CFrame BHop] Ground hit. Automatically simulated jump force.")
                     end
                 end
+
+                -- 4. 計算した次フレームの3次元座標と回転を合わせてモデルを移動
+                local nextPosition = Vector3.new(nextX, targetY, nextZ)
+                model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
             end)
             
             if not success then
@@ -208,7 +228,7 @@ function Speed.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[Speed Debug] TPWalk Disabled.")
+        print("[Speed Debug] CFrame BHop Disabled.")
     end
 end
 
