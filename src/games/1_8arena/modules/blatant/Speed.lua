@@ -8,21 +8,25 @@ local gameCamera = workspace.CurrentCamera
 
 local Speed = {
     Name = "Speed",
-    Description = "Increases your movement with dynamic custom methods.",
+    Description = "Increases your movement with custom game-tick, velocity, and CFrame teleportation.",
     TargetGame = "1_8arena"
 }
 
--- 初期設定値テーブル
+-- 初期設定値テーブル（1_8arenaで確実に動く "Tick" をデフォルトに設定）
 Speed.Settings = {
-    Method = "Velocity",
+    Method = "Tick",
     SpeedValue = 30,
     AutoJump = true
 }
 
 -- UIコンポーネント用プレースホルダー
-local Method = { Value = "Velocity" }
+local Method = { Value = "Tick" }
 local Value = { Value = 30 }
 local AutoJump = { Enabled = true }
+
+-- 環境差を吸収した upvalue 取得関数
+local getupvalue = (debug and debug.getupvalue) or getupvalue or (getgenv and getgenv().getupvalue) or (getfenv and getfenv().getupvalue)
+local setupvalue = (debug and debug.setupvalue) or setupvalue or (getgenv and getgenv().setupvalue) or (getfenv and getfenv().setupvalue)
 
 local moduleInstance = nil
 
@@ -68,11 +72,11 @@ function Speed.Init(moduleObj)
     
     print("[Speed Init] Initializing UI components...")
 
-    -- 1. 移動方式を選択するドロップダウン
+    -- 🌟 1. 移動方式を選択するドロップダウン (1_8arena用の Tick を含めてリニューアル)
     Method = moduleObj:CreateDropdown({
         Name = "Method",
-        List = {"Velocity", "TPWalk"},
-        Default = Speed.Settings.Method or "Velocity",
+        List = {"Tick", "Velocity", "TPWalk"},
+        Default = Speed.Settings.Method or "Tick",
         Function = function(val)
             Speed.Settings.Method = val
             print("[Speed UI] Method changed to: " .. tostring(val))
@@ -118,6 +122,7 @@ function Speed.Callback(enabled)
         local modelNotFoundLogged = false
         local characterFoundLogged = false
         local rootNotFoundLogged = false
+        local activeArenaNotified = false
         local lastMovingState = nil
         local lastActiveMethod = nil
         
@@ -126,6 +131,7 @@ function Speed.Callback(enabled)
         connection = RunService.PreSimulation:Connect(function(dt)
             local vape = shared.vape or _G.mainapi
             local entitylib = vape and vape.Libraries and vape.Libraries.entity
+            local activeArena = getgenv().arena or arena
             
             local model = getLocalCharacterModel(entitylib)
             if not model then
@@ -172,9 +178,37 @@ function Speed.Callback(enabled)
                 end
 
                 -- =========================================================
-                -- 方式 A: Velocity (物理速度操作 & Strafe)
+                -- 方式 A: Tick (1_8arena 専用カスタム物理ループハック)
                 -- =========================================================
-                if Method.Value == "Velocity" then
+                if Method.Value == "Tick" then
+                    if activeArena and activeArena.MoveFunction and activeArena.TickFunction then
+                        activeArenaNotified = false
+                        local movedir = dir * Value.Value
+                        local onground = getupvalue(activeArena.MoveFunction, 4)
+                        local velocity = getupvalue(activeArena.TickFunction, 6)
+
+                        if onground ~= nil and velocity ~= nil then
+                            setupvalue(
+                                activeArena.TickFunction, 
+                                6, 
+                                Vector3.new(
+                                    movedir.X, 
+                                    AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, 
+                                    movedir.Z
+                                )
+                            )
+                        end
+                    else
+                        if not activeArenaNotified then
+                            activeArenaNotified = true
+                            warn("[Speed Debug] Custom Tick/Move functions not loaded yet. Waiting...")
+                        end
+                    end
+
+                -- =========================================================
+                -- 方式 B: Velocity (標準物理速度 & Strafe)
+                -- =========================================================
+                elseif Method.Value == "Velocity" then
                     if isMoving then
                         local targetVel = dir * Value.Value
                         root.AssemblyLinearVelocity = Vector3.new(
@@ -214,11 +248,12 @@ function Speed.Callback(enabled)
                     end
 
                 -- =========================================================
-                -- 方式 B: TPWalk (CFrameピボットテレポート)
+                -- 方式 C: TPWalk (CFrameピボットテレポート)
                 -- =========================================================
                 elseif Method.Value == "TPWalk" then
                     if isMoving then
                         local cur = model:GetPivot()
+                        -- FPSの影響を受けないように経過時間(dt)を計算に使用
                         local nextPosition = cur.Position + dir * (Value.Value * dt)
                         model:PivotTo(CFrame.new(nextPosition) * (cur - cur.Position))
 
