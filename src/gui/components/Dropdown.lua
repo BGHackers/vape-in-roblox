@@ -9,8 +9,18 @@ local default_uipallet = {
     Main  = Color3.fromRGB(26, 25, 26),
     Text  = Color3.fromRGB(200, 200, 200),
     Font  = Enum.Font.SourceSans,
-    Tween = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) -- 🌟 修正：正しいEnum指定に修正
+    Tween = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 }
+
+-- 【修正】どの関数からでも安全に呼び出せるよう、tweenProperty をファイル共通のローカル関数として定義
+local function tweenProperty(self, instance, properties)
+    local active_tween = (tween and tween.Tween) and tween or nil
+    if active_tween then
+        active_tween:Tween(instance, self.uipallet.Tween, properties)
+    else
+        TweenService:Create(instance, self.uipallet.Tween, properties):Play()
+    end
+end
 
 local function getTableSize(t)
     local count = 0
@@ -60,7 +70,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     local active_uipallet = (uipallet and uipallet.Main) and uipallet or default_uipallet
     self.uipallet = active_uipallet
     local active_color = (color and color.Light and color.Dark) and color or { Light = colorLight, Dark = colorDark }
-    local active_tween = (tween and tween.Tween) and tween or nil
 
     self.Name = name
     self.Type = "Dropdown"
@@ -72,15 +81,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
 
     -- 接続イベント安全管理用
     self.OutsideClickConnection = nil
-
-    -- 汎用アニメーション（Tween）ラッパー
-    local function tweenProperty(instance, properties)
-        if active_tween then
-            active_tween:Tween(instance, active_uipallet.Tween, properties)
-        else
-            TweenService:Create(instance, active_uipallet.Tween, properties):Play()
-        end
-    end
 
     -- ベースボタン枠（初期の閉じている高さ: 40）
     local dropdown = Instance.new("TextButton")
@@ -185,7 +185,7 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     -- 展開・閉縮ロジック
     button.MouseButton1Click:Connect(function()
         if not self.DropdownChildren then
-            tweenProperty(arrow, { Rotation = 270 })
+            tweenProperty(self, arrow, { Rotation = 270 })
             
             -- アイテム数に応じたスクロール切り替えロジック
             local listSize = #self.List
@@ -254,10 +254,10 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
                 -- オプションのホバー処理
                 local hoverCol = active_color.Light(active_uipallet.Main, 0.02)
                 option.MouseEnter:Connect(function()
-                    tweenProperty(option, { BackgroundColor3 = hoverCol })
+                    tweenProperty(self, option, { BackgroundColor3 = hoverCol })
                 end)
                 option.MouseLeave:Connect(function()
-                    tweenProperty(option, { BackgroundColor3 = active_uipallet.Main })
+                    tweenProperty(self, option, { BackgroundColor3 = active_uipallet.Main })
                 end)
 
                 -- 選択クリック時
@@ -269,7 +269,7 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
             end
 
             -- サイズの展開アニメーション
-            tweenProperty(dropdown, { Size = UDim2.new(1, 0, 0, expandedHeight) })
+            tweenProperty(self, dropdown, { Size = UDim2.new(1, 0, 0, expandedHeight) })
 
             -- 外側クリック時の閉じ処理バインド
             disconnectOutsideClick()
@@ -301,10 +301,10 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     local hoverBkgCol = active_color.Light(active_uipallet.Main, 0.0875)
     local normalBkgCol = active_color.Light(active_uipallet.Main, 0.034)
     dropdown.MouseEnter:Connect(function()
-        tweenProperty(bkg, { BackgroundColor3 = hoverBkgCol })
+        tweenProperty(self, bkg, { BackgroundColor3 = hoverBkgCol })
     end)
     dropdown.MouseLeave:Connect(function()
-        tweenProperty(bkg, { BackgroundColor3 = normalBkgCol })
+        tweenProperty(self, bkg, { BackgroundColor3 = normalBkgCol })
     end)
 
     if self.api and self.api.Options then
@@ -343,12 +343,12 @@ function Dropdown:SetValue(val, mouse)
             self.OutsideClickConnection = nil
         end
 
-        tweenProperty(self.Arrow, { Rotation = 90 })
+        tweenProperty(self, self.Arrow, { Rotation = 90 })
         self.DropdownChildren:Destroy()
         self.DropdownChildren = nil
         
         -- クローズアニメーションの再生
-        tweenProperty(self.Object, { Size = UDim2.new(1, 0, 0, 40) })
+        tweenProperty(self, self.Object, { Size = UDim2.new(1, 0, 0, 40) })
 
         -- 閉じたことを即座に親ウィンドウに通知してリサイズ
         if self.ModuleInstance and self.ModuleInstance._refreshOptionsHeight then
