@@ -6,6 +6,7 @@ local places = {
     ["109668355806967"] = require("games.hoplex.base"),
     ["81463261330977"] = require("games.pillars_of_fortune.base"),
     ["13956616152"] = require("games.bridge_duel.base"),
+    ["100596840912680"] = require("games.lucky_blocks.base"), -- Lucky Blocks: Worlds
 }
 
 -- 全ゲーム共通のユニバーサルモジュール（games.universal.base からロード）
