@@ -1,4 +1,4 @@
--- src/games/1_8arena/modules/blatant/Killaura.lua
+-- games/lucky_blocks/modules/blatant/Killaura.lua
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
@@ -7,7 +7,7 @@ local lplr = Players.LocalPlayer
 local Killaura = {
     Name = "Killaura",
     Description = "Attacks nearby players automatically within a set range.",
-    TargetGame = "1_8arena"
+    TargetGame = "lucky_blocks" -- 🌟 TargetGameをlucky_blocksに変更
 }
 
 -- 初期設定値
@@ -101,19 +101,25 @@ function Killaura.Callback(enabled)
         
         connection = RunService.PreSimulation:Connect(function()
             local now = os.clock()
-            -- 指定されたディレイ時間（ミリ秒）が経過しているかチェック
+            -- 指定されたディレイ時間（秒）が経過しているかチェック
             if now - lastAttack >= Delay.Value then
                 local target = getClosestPlayer(Range.Value)
                 if target then
                     local success, err = pcall(function()
-                        -- リモートイベント/ファンクションの安全な探索と実行
+                        -- 1. 1_8arena用リモート（もし存在すれば実行）
                         local gameRemotes = game:GetService("ReplicatedStorage"):FindFirstChild("GameRemotes")
                         local attackRemote = gameRemotes and gameRemotes:FindFirstChild("Attack")
                         
                         if attackRemote then
                             attackRemote:InvokeServer(target)
-                            lastAttack = now -- 最終攻撃時間を更新
+                        else
+                            -- 2. 🌟 汎用フォールバック（ラッキーブロック等のツール自動攻撃）
+                            local tool = lplr.Character and lplr.Character:FindFirstChildOfClass("Tool")
+                            if tool then
+                                tool:Activate()
+                            end
                         end
+                        lastAttack = now -- 最終攻撃時間を更新
                     end)
                     
                     if not success then
