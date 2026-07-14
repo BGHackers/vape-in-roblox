@@ -26,9 +26,25 @@ local AutoJump = { Enabled = true }
 local moduleInstance = nil
 local theta = 0 -- 旋回の角度ステート
 local direction = 1 -- 1 = 時計回り, -1 = 反時計回り
-local lastDirectionSwitch = 0 -- 高速チャタリング（反転ループ）防止用のクールダウンタイマー
+local lastDirectionSwitch = 0
 
--- 最も近くにいるプレイヤーを検出（HP判定なし仕様）
+-- 🌟 【新規】アバターに応じた地面から腰（RootPart）までの正確な高さを計算する関数
+local function getPivotOffset(model)
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+    local root = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
+    
+    if humanoid and typeof(humanoid) == "Instance" and humanoid:IsA("Humanoid") then
+        if humanoid.RigType == Enum.RigType.R6 then
+            return 3.0 -- R6アバターの標準高度
+        else
+            local rootSizeY = root and root.Size.Y or 2
+            return humanoid.HipHeight + (rootSizeY / 2) -- R15アバターの標準高度
+        end
+    end
+    return 3.0
+end
+
+-- 最も近くにいるプレイヤーを検出
 local function getClosestTarget(rangeLimit)
     local character = lplr.Character
     local localRoot = character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso"))
@@ -96,7 +112,7 @@ end
 
 function TargetStrafe.Callback(enabled)
     if enabled then
-        print("[TargetStrafe Debug] Safe TargetStrafe Enabled.")
+        print("[TargetStrafe Debug] Ground-Locked TargetStrafe Enabled.")
         theta = 0
         direction = 1
         lastDirectionSwitch = 0
@@ -115,7 +131,7 @@ function TargetStrafe.Callback(enabled)
             if targetChar then
                 local targetRoot = targetChar:FindFirstChild("HumanoidRootPart") or targetChar:FindFirstChild("Torso")
                 if targetRoot then
-                    -- 角度の更新（directionを掛け合わせて時計回り・反時計回りを制御）
+                    -- 旋回角度の更新
                     theta = (theta + direction * Speed.Value * dt) % (math.pi * 2)
                     
                     local targetPos = targetRoot.Position
@@ -123,56 +139,66 @@ function TargetStrafe.Callback(enabled)
                     
                     local nextX = targetPos.X + math.cos(theta) * Distance.Value
                     local nextZ = targetPos.Z + math.sin(theta) * Distance.Value
-                    local nextY = localPos.Y -- プレイヤーの高さを維持
                     
-                    local nextPosition = Vector3.new(nextX, nextY, nextZ)
+                    -- 🌟 【修正】沈み込みを完全に防ぐY座標（高さ）の制御システム
+                    local nextY = localPos.Y
+                    local pivotOffset = getPivotOffset(character)
                     
-                    -- 移動方向ベクトルと向きの算出
-                    local moveVec = (nextPosition - localPos)
-                    local moveDir = moveVec.Magnitude > 0 and moveVec.Unit or root.CFrame.LookVector
-                    
-                    -- レイキャスト用の除外設定（自分自身とターゲットのキャラクターを除外）
+                    -- レイキャスト用の除外設定
                     local params = RaycastParams.new()
                     params.FilterType = Enum.RaycastFilterType.Exclude
                     params.FilterDescendantsInstances = {character, targetChar}
                     
-                    -- 🌟 1. 【安全装置：奈落/落下防止（Void Protection）】
-                    -- 移動予定の先の「上空3スタッド」から「真下25スタッド」へ光線を射出し、床（地面）があるか判定
-                    local floorOrigin = Vector3.new(nextX, nextY + 3, nextZ)
+                    -- 移動予定の先の地面をレイキャストで検出
+                    local floorOrigin = Vector3.new(nextX, localPos.Y + 3, nextZ)
                     local floorResult = workspace:Raycast(floorOrigin, Vector3.new(0, -25, 0), params)
-                    local voidDetected = (floorResult == nil) -- 下に床が何もない＝奈落判定
+                    local voidDetected = (floorResult == nil)
                     
-                    -- 🌟 2. 【安全装置：壁検知システム（Wall Jump & Stop）】
-                    -- 自身の腰の高さ（足元から0.5スタッド上）から、移動方向に向けて光線を射出
+                    if floorResult then
+                        local groundY = floorResult.Position.Y + pivotOffset
+                        
+                        if humanoid.FloorMaterial ~= Enum.Material.Air then
+                            -- 地上にいる場合：Y座標を床の高さに強制ロックして沈み込みを完全にゼロにします
+                            nextY = groundY
+                        else
+                            -- 空中にいる場合（ジャンプ・落下中）：落下時に床を貫通しないよう、着地寸前のみ地面にスナップ
+                            if localPos.Y - groundY < 0.5 then
+                                nextY = groundY
+                            end
+                        end
+                    end
+                    
+                    local nextPosition = Vector3.new(nextX, nextY, nextZ)
+                    
+                    -- 移動方向ベクトル
+                    local moveVec = (nextPosition - localPos)
+                    local moveDir = moveVec.Magnitude > 0 and moveVec.Unit or root.CFrame.LookVector
+                    
+                    -- 壁検知システム
                     local hipOrigin = localPos + Vector3.new(0, 0.5, 0)
-                    local wallResult = workspace:Raycast(hipOrigin, moveDir * 4, params) -- 4スタッド先の障害物を検知
+                    local wallResult = workspace:Raycast(hipOrigin, moveDir * 4, params)
                     
                     local wallDetected = false
                     local highWallDetected = false
                     
                     if wallResult and wallResult.Instance and wallResult.Instance.CanCollide then
                         wallDetected = true
-                        
-                        -- ジャンプしても越えられない「頭より高い壁」であるかを追加チェック
                         local headOrigin = localPos + Vector3.new(0, 3, 0)
                         local headResult = workspace:Raycast(headOrigin, moveDir * 4, params)
                         if headResult and headResult.Instance and headResult.Instance.CanCollide then
-                            highWallDetected = true -- ジャンプ不可能の高い壁
+                            highWallDetected = true
                         end
                     end
                     
-                    -- 🌟 3. 【旋回反転トリガー（奈落 or 高すぎる壁に直面した場合）】
-                    -- チャタリング（細かく左右にブルブル往復する現象）を防ぐため、反転後は0.5秒のディレイを設ける
+                    -- 旋回反転トリガー（奈落 or 高すぎる壁に直面した場合）
                     if (voidDetected or highWallDetected) and (os.clock() - lastDirectionSwitch > 0.5) then
-                        direction = -direction -- 旋回方向を逆（時計回り ↔ 反時計回り）にする
+                        direction = -direction
                         lastDirectionSwitch = os.clock()
-                        -- 角度を戻して今フレームのテレポートを中止し、次フレームから逆方向に移動開始
                         theta = (theta - 2 * direction * Speed.Value * dt) % (math.pi * 2)
                         return
                     end
                     
-                    -- 🌟 4. 【通常の自動壁ジャンプ】
-                    -- ジャンプで越えられる通常の壁を検知した場合、自動ジャンプを作動
+                    -- 通常の自動壁ジャンプ
                     if wallDetected and not highWallDetected then
                         humanoid.Jump = true
                     end
@@ -195,7 +221,7 @@ function TargetStrafe.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[TargetStrafe Debug] Safe TargetStrafe Disabled.")
+        print("[TargetStrafe Debug] TargetStrafe Disabled.")
     end
 end
 
