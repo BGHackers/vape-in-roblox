@@ -4,8 +4,11 @@ local Players = game:GetService("Players")
 
 local lplr = Players.LocalPlayer
 
+-- 🌟 【リモートの設定】
 local function getAttackRemote()
     local rep = game:GetService("ReplicatedStorage")
+    
+    -- ここでリモート候補を順番に探します
     return rep:FindFirstChild("GameRemotes") and rep.GameRemotes:FindFirstChild("Attack")
         or rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("Attack")
         or rep:FindFirstChild("Attack")
@@ -24,7 +27,6 @@ Killaura.Settings = {
 
 local Range = { Value = 20 }
 local Delay = { Value = 0.1 }
-
 local moduleInstance = nil
 
 local function getClosestTarget(rangeLimit)
@@ -54,24 +56,16 @@ end
 
 function Killaura.Init(moduleObj)
     moduleInstance = moduleObj
-    
     _G.vapeModules = _G.vapeModules or {}
     _G.vapeModules[Killaura.Name] = moduleObj
     
-    print("[Killaura Init] Initializing Remote-Only UI components...")
-
     Range = moduleObj:CreateSlider({
         Name = "Range",
         Min = 5,
         Max = 50,
         Default = Killaura.Settings.RangeValue or 20,
-        Suffix = function(val)
-            return val == 1 and "stud" or "studs"
-        end,
-        Function = function(val)
-            Killaura.Settings.RangeValue = val
-            print("[Killaura UI] Range adjusted to: " .. tostring(val))
-        end
+        Suffix = function(val) return val == 1 and "stud" or "studs" end,
+        Function = function(val) Killaura.Settings.RangeValue = val end
     })
 
     Delay = moduleObj:CreateSlider({
@@ -79,23 +73,31 @@ function Killaura.Init(moduleObj)
         Min = 0.05,
         Max = 1,
         Default = Killaura.Settings.DelayValue or 0.1,
-        Suffix = function(val)
-            return "s"
-        end,
-        Function = function(val)
-            Killaura.Settings.DelayValue = val
-            print("[Killaura UI] Attack Delay adjusted to: " .. tostring(val) .. "s")
-        end
+        Suffix = function(val) return "s" end,
+        Function = function(val) Killaura.Settings.DelayValue = val end
     })
 end
 
 function Killaura.Callback(enabled)
     if enabled then
-        print(string.format(
-            "[Killaura Debug] Remote-Only Killaura Enabled. Settings: [Range: %s] [Delay: %s]",
-            tostring(Range.Value),
-            tostring(Delay.Value)
-        ))
+        print("[Killaura Debug] Killaura Enabled.")
+        
+        -- 🌟 【検知テスト】ONにした瞬間にリモートの存在チェックを実行
+        local remote = getAttackRemote()
+        if remote then
+            -- 緑色の文字などで見つかったリモートのフルパスをコンソールに出力
+            print("=========================================")
+            print("🎉 [Killaura] リモート検知成功！")
+            print("パス: " .. remote:GetFullName())
+            print("クラス名: " .. remote.ClassName)
+            print("=========================================")
+        else
+            -- 見つからなかった場合は警告を出力
+            warn("=========================================")
+            warn("⚠️ [Killaura] リモートが検知できませんでした！")
+            warn(" getAttackRemote() 内のパスを確認してください。")
+            warn("=========================================")
+        end
         
         local lastAttack = 0
         local connection
@@ -106,17 +108,16 @@ function Killaura.Callback(enabled)
                 local target = getClosestTarget(Range.Value)
                 if target then
                     local success, err = pcall(function()
-                        local remote = getAttackRemote()
-                        if remote then
-                            if remote:IsA("RemoteEvent") then
-                                remote:FireServer(target)
-                            elseif remote:IsA("RemoteFunction") then
-                                remote:InvokeServer(target)
+                        local activeRemote = getAttackRemote()
+                        if activeRemote then
+                            if activeRemote:IsA("RemoteEvent") then
+                                activeRemote:FireServer(target)
+                            elseif activeRemote:IsA("RemoteFunction") then
+                                activeRemote:InvokeServer(target)
                             end
                             lastAttack = now
                         end
                     end)
-                    
                     if not success then
                         warn("[Killaura Error]:", tostring(err))
                     end
@@ -128,7 +129,7 @@ function Killaura.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[Killaura Debug] Remote-Only Killaura Disabled.")
+        print("[Killaura Debug] Killaura Disabled.")
     end
 end
 
