@@ -57,7 +57,7 @@ function Killaura.Init(moduleObj)
     Range = moduleObj:CreateSlider({
         Name = "Range",
         Min = 5,
-        Max = 50,
+        Max = 30,
         Default = Killaura.Settings.RangeValue or 30,
         Suffix = function(val) return val == 1 and "stud" or "studs" end,
         Function = function(val) Killaura.Settings.RangeValue = val end
