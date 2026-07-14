@@ -6,48 +6,23 @@ local lplr = Players.LocalPlayer
 
 local Killaura = {
     Name = "Killaura",
-    Description = "Attacks nearby players by firing the Lucky Block attack RemoteFunction.",
+    Description = "Attacks nearby players using the Mawin_CK custom remote system.",
     TargetGame = "lucky_blocks"
 }
 
 -- 初期設定値
 Killaura.Settings = {
-    RangeValue = 20,
-    DelayValue = 0.1
+    RangeValue = 30, -- Mawin_CK仕様のデフォルト30スタッド
+    DelayValue = 0.1 -- Mawin_CK仕様のデフォルト0.1秒
 }
 
 -- UIコンポーネント用プレースホルダー
-local Range = { Value = 20 }
+local Range = { Value = 30 }
 local Delay = { Value = 0.1 }
-
 local moduleInstance = nil
 
--- 最も近くにいる、生存しているプレイヤーを取得する関数
+-- Mawin_CK様のロジックに完全準拠したターゲット捕捉（HPチェックを排除）
 local function getClosestTarget(rangeLimit)
-    local vape = shared.vape or _G.mainapi
-    local entitylib = vape and vape.Libraries and vape.Libraries.entity
-    
-    -- 1. 共通 entitylib が利用可能な場合（自動HP判定や特殊なキャラ構造に対応）
-    if entitylib and entitylib.List then
-        local localEntity = entitylib.character
-        if not localEntity or not localEntity.RootPart then return nil end
-        
-        local target = nil
-        local closestDist = rangeLimit
-        
-        for _, ent in ipairs(entitylib.List) do
-            if ent.Targetable and ent.RootPart and ent.Health > 0 then
-                local dist = (localEntity.RootPart.Position - ent.RootPart.Position).Magnitude
-                if dist < closestDist then
-                    closestDist = dist
-                    target = ent.Character
-                end
-            end
-        end
-        return target
-    end
-
-    -- 2. フォールバック（entitylibが読み込まれていない場合の標準的な走査）
     local character = lplr.Character
     local localRoot = character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso"))
     if not localRoot then return nil end
@@ -56,11 +31,12 @@ local function getClosestTarget(rangeLimit)
     local closestDist = rangeLimit
 
     for _, v in ipairs(Players:GetPlayers()) do
+        -- 自分以外、かつキャラクターモデルが存在する場合
         if v ~= lplr and v.Character then
             local root = v.Character:FindFirstChild("HumanoidRootPart") or v.Character:FindFirstChild("Torso")
-            local humanoid = v.Character:FindFirstChildOfClass("Humanoid")
             
-            if root and humanoid and humanoid.Health > 0 then
+            -- ⚠️ HPやHumanoidオブジェクトの有無に関わらず、パーツの位置だけで判定
+            if root then
                 local dist = (localRoot.Position - root.Position).Magnitude
                 if dist < closestDist then
                     closestDist = dist
@@ -78,14 +54,14 @@ function Killaura.Init(moduleObj)
     _G.vapeModules = _G.vapeModules or {}
     _G.vapeModules[Killaura.Name] = moduleObj
     
-    print("[Killaura Init] Initializing Lucky Block UI components...")
+    print("[Killaura Init] Initializing Mawin_CK based UI components...")
 
-    -- 1. 射程調整スライダー
+    -- 1. 射程（Range）スライダー
     Range = moduleObj:CreateSlider({
         Name = "Range",
         Min = 5,
         Max = 50,
-        Default = Killaura.Settings.RangeValue or 20,
+        Default = Killaura.Settings.RangeValue or 30,
         Suffix = function(val)
             return val == 1 and "stud" or "studs"
         end,
@@ -95,7 +71,7 @@ function Killaura.Init(moduleObj)
         end
     })
 
-    -- 2. 攻撃間隔（ディレイ）調整スライダー
+    -- 2. 攻撃間隔（Delay）スライダー
     Delay = moduleObj:CreateSlider({
         Name = "Attack Delay",
         Min = 0.05,
@@ -113,17 +89,17 @@ end
 
 function Killaura.Callback(enabled)
     if enabled then
-        print("[Killaura Debug] Lucky Blocks Killaura Enabled.")
+        print("[Killaura Debug] Mawin_CK Killaura Enabled.")
         
-        -- スキャン結果に基づき、正確なパスから RemoteFunction を取得
+        -- 先ほどのスキャンで確認された RemoteFunction の取得
         local successRemote, remote = pcall(function()
             return game:GetService("ReplicatedStorage").GameRemotes.Attack
         end)
         
         if successRemote and remote and remote:IsA("RemoteFunction") then
-            print("[Killaura] Target remote successfully found: " .. remote:GetFullName())
+            print("[Killaura] Dedicated Remote verified: " .. remote:GetFullName())
         else
-            warn("[Killaura] Dedicated Remote (GameRemotes.Attack) was NOT found in ReplicatedStorage!")
+            warn("[Killaura] GameRemotes.Attack NOT found!")
         end
         
         local lastAttack = 0
@@ -133,11 +109,16 @@ function Killaura.Callback(enabled)
             local now = os.clock()
             if now - lastAttack >= Delay.Value then
                 local target = getClosestTarget(Range.Value)
+                
+                -- 無駄なスパムによるBAN・キックを防ぐため、ターゲットが捕捉できたときのみパケットを送信します
                 if target then
                     local success, err = pcall(function()
                         if remote and remote:IsA("RemoteFunction") then
-                            -- 🌟 ターゲットキャラクターを第一引数として InvokeServer で送信
-                            remote:InvokeServer(target)
+                            -- Mawin_CK様と同様の引数アンパック形式での送信
+                            local args = {
+                                [1] = target
+                            }
+                            remote:InvokeServer(unpack(args))
                             lastAttack = now
                         end
                     end)
@@ -153,7 +134,7 @@ function Killaura.Callback(enabled)
             moduleInstance:Clean(connection)
         end
     else
-        print("[Killaura Debug] Lucky Blocks Killaura Disabled.")
+        print("[Killaura Debug] Mawin_CK Killaura Disabled.")
     end
 end
 
