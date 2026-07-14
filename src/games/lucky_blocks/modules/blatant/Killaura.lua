@@ -19,6 +19,7 @@ Killaura.Settings = {
 local Range = { Value = 30 }
 local Delay = { Value = 0.1 }
 local moduleInstance = nil
+local killauraActive = false -- ON/OFFの管理フラグ
 
 -- 最も近くにいるプレイヤーを検出（HPチェックなしのMawin_CK仕様）
 local function getClosestTarget(rangeLimit)
@@ -51,7 +52,7 @@ function Killaura.Init(moduleObj)
     _G.vapeModules = _G.vapeModules or {}
     _G.vapeModules[Killaura.Name] = moduleObj
     
-    print("[Killaura Init] Initializing Debug-equipped UI components...")
+    print("[Killaura Init] Initializing Thread-based UI components...")
 
     Range = moduleObj:CreateSlider({
         Name = "Range",
@@ -73,63 +74,44 @@ function Killaura.Init(moduleObj)
 end
 
 function Killaura.Callback(enabled)
+    killauraActive = enabled -- ループ制御用フラグを更新
+    
     if enabled then
-        print("[Killaura Debug] Lucky Blocks Killaura Enabled.")
+        print("[Killaura Debug] Thread Loop Killaura Enabled.")
         
-        -- リモートの取得
         local successRemote, remote = pcall(function()
             return game:GetService("ReplicatedStorage").GameRemotes.Attack
         end)
         
         if successRemote and remote and remote:IsA("RemoteFunction") then
-            print("[Killaura Debug] 専用リモートの確認完了: " .. remote:GetFullName())
-        else
-            warn("[Killaura Debug] 専用リモート (GameRemotes.Attack) が見つかりません！")
-        end
-        
-        local lastAttack = 0
-        local lastLogTime = 0
-        local connection
-        
-        connection = RunService.PreSimulation:Connect(function()
-            local now = os.clock()
-            if now - lastAttack >= Delay.Value then
-                local target = getClosestTarget(Range.Value)
-                
-                if target then
-                    -- 🌟 ターゲットを検知している場合のログを出力
-                    local dist = 0
-                    pcall(function()
-                        dist = math.floor((lplr.Character.HumanoidRootPart.Position - target.HumanoidRootPart.Position).Magnitude)
-                    end)
-                    print(string.format("[Killaura] 🎯 敵を捕捉中: %s (距離: %d studs) -> リモート送信中...", target.Name, dist))
+            -- 🌟 Mawin_CK様と同じ、多重送信を防ぐ安全なwhileループを非同期スレッド(task.spawn)で起動します
+            task.spawn(function()
+                while killauraActive do
+                    local target = getClosestTarget(Range.Value)
                     
-                    local success, err = pcall(function()
-                        if remote and remote:IsA("RemoteFunction") then
-                            local args = { target }
+                    if target then
+                        local success, err = pcall(function()
+                            -- サーバーからの戻りを待つ（イールド）ため、渋滞が発生しません
+                            local args = {
+                                [1] = target
+                            }
                             remote:InvokeServer(unpack(args))
-                            lastAttack = now
+                        end)
+                        
+                        if not success then
+                            warn("[Killaura Error]:", tostring(err))
                         end
-                    end)
+                    end
                     
-                    if not success then
-                        warn("[Killaura Error]:", tostring(err))
-                    end
-                else
-                    -- 🌟 ターゲットがいない場合（ログでコンソールが埋まらないよう、2秒ごとに1度だけ状況を出力）
-                    if now - lastLogTime >= 2 then
-                        print("[Killaura Info] 範囲内にターゲットになるプレイヤーがいません。（※自分自身は除外されます）")
-                        lastLogTime = now
-                    end
+                    -- 設定されたディレイ時間分、安全に待機します
+                    task.wait(Delay.Value)
                 end
-            end
-        end)
-        
-        if moduleInstance then
-            moduleInstance:Clean(connection)
+            end)
+        else
+            warn("[Killaura Debug] GameRemotes.Attack NOT found!")
         end
     else
-        print("[Killaura Debug] Lucky Blocks Killaura Disabled.")
+        print("[Killaura Debug] Thread Loop Killaura Disabled.")
     end
 end
 
