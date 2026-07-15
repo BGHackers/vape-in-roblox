@@ -152,7 +152,7 @@ local function onHeartbeat(dt)
         end
 
         -- ◆修正点2: スムーズな移動と回転
-        -- 【変更箇所1】MoveDirection への代入ではなく、:Move メソッドを使用
+        -- 【変更】MoveDirection への代入を廃止し、:Move メソッドを使用
         humanoid:Move(moveDirection, false)
         
         -- ターゲットの方を常に見るようにキャラクターの向きを更新
@@ -164,7 +164,7 @@ local function onHeartbeat(dt)
         end
     else
         -- ターゲットがいない場合は移動を停止
-        -- 【変更箇所2】:Move(Vector3.zero) で移動を停止
+        -- 【変更】:Move(Vector3.zero) で移動を停止
         if humanoid.MoveDirection ~= Vector3.zero then
             humanoid:Move(Vector3.zero, false)
         end
@@ -190,7 +190,7 @@ function TargetStrafe.Callback(enabled)
         end
         
         -- 念のため、移動を停止させる
-        -- 【変更箇所3】ここでも MoveDirection への代入ではなく、:Move(Vector3.zero) を使用
+        -- 【変更】ここでも MoveDirection への代入ではなく :Move を使用
         if lplr.Character then
             local humanoid = lplr.Character:FindFirstChildOfClass("Humanoid")
             if humanoid then
