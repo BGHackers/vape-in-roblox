@@ -152,8 +152,9 @@ local function onHeartbeat(dt)
         end
 
         -- ◆修正点2: スムーズな移動と回転
-        -- 移動方向をヒューマノイドに設定
-        humanoid.MoveDirection = moveDirection
+        -- 【変更箇所1】MoveDirection への代入ではなく、:Move メソッドを使用
+        humanoid:Move(moveDirection, false)
+        
         -- ターゲットの方を常に見るようにキャラクターの向きを更新
         myRoot.CFrame = CFrame.lookAt(myPos, Vector3.new(targetPos.X, myPos.Y, targetPos.Z))
         
@@ -163,8 +164,9 @@ local function onHeartbeat(dt)
         end
     else
         -- ターゲットがいない場合は移動を停止
+        -- 【変更箇所2】:Move(Vector3.zero) で移動を停止
         if humanoid.MoveDirection ~= Vector3.zero then
-            humanoid.MoveDirection = Vector3.zero
+            humanoid:Move(Vector3.zero, false)
         end
     end
 end
@@ -188,8 +190,12 @@ function TargetStrafe.Callback(enabled)
         end
         
         -- 念のため、移動を停止させる
-        if lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid") then
-            lplr.Character.Humanoid.MoveDirection = Vector3.zero
+        -- 【変更箇所3】ここでも MoveDirection への代入ではなく、:Move(Vector3.zero) を使用
+        if lplr.Character then
+            local humanoid = lplr.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:Move(Vector3.zero, false)
+            end
         end
     end
 end
