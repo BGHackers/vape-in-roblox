@@ -12,15 +12,15 @@ local TargetStrafe = {
     TargetGame = "lucky_blocks"
 }
 
--- 設定のデフォルト値（ビジュアル関連の設定を追加）
+-- 設定のデフォルト値
 TargetStrafe.Settings = {
     DistanceValue = 6,
     SpeedValue = 12,
     SearchRangeValue = 80,
     AutoJump = true,
-    DrawCircle = true,       -- サークル表示のデフォルト設定
-    TargetHighlight = true,  -- ハイライト表示のデフォルト設定
-    TargetTracer = true      -- トレーサー表示のデフォルト設定
+    DrawCircle = true,       
+    TargetHighlight = true,  
+    TargetTracer = true      
 }
 
 -- 変数の初期化
@@ -30,12 +30,12 @@ local theta = 0 -- 旋回の角度
 local direction = 1 -- 1 = 時計回り, -1 = 反時計回り
 local lastDirectionSwitchTime = 0
 
--- 【デバッグ用変数】
+-- デバッグ用変数
 local lastPeriodicLog = 0
 local lastTargetName = nil
 local firstHeartbeatFired = false
 
--- 【ビジュアル管理用インスタンス】
+-- ビジュアル管理用インスタンス
 local currentHighlight = nil
 local circlePart = nil
 local tracerBeam = nil
@@ -50,7 +50,8 @@ local function getPivotOffset(model)
     local humanoid = model:FindFirstChildOfClass("Humanoid")
     if not humanoid then return 2.0 end -- デフォルト値
 
-    if humanoid.RigType == Enum.RigType.R6 then
+    -- 【エラー修正箇所】Enum.RigType ではなく Enum.HumanoidRigType が正解です
+    if humanoid.RigType == Enum.HumanoidRigType.R6 then
         return 2.5 -- R6アバターの標準的な高さ
     else
         -- R15アバターはHipHeightから計算
@@ -137,7 +138,6 @@ function TargetStrafe.Init(moduleObj)
         Function = function(state) TargetStrafe.Settings.AutoJump = state end
     })
 
-    -- 【新規UI】ビジュアル関連のトグルコントロールを追加
     UI.DrawCircle = moduleObj:CreateToggle({
         Name = "Draw Strafe Circle",
         Default = TargetStrafe.Settings.DrawCircle,
@@ -210,17 +210,13 @@ local function onHeartbeat(dt)
             lastTargetName = targetName
         end
 
-        -- ========================================================
-        -- 【ビジュアル処理のリアルタイム描画と更新】
-        -- ========================================================
-        
         -- 1. ターゲットハイライト (Highlight)
         if TargetStrafe.Settings.TargetHighlight then
             if not currentHighlight or currentHighlight.Parent ~= currentTarget then
                 if currentHighlight then currentHighlight:Destroy() end
                 currentHighlight = Instance.new("Highlight")
-                currentHighlight.FillColor = Color3.fromRGB(0, 255, 255) -- シアン（青緑）
-                currentHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- 白
+                currentHighlight.FillColor = Color3.fromRGB(0, 255, 255) 
+                currentHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
                 currentHighlight.FillTransparency = 0.6
                 currentHighlight.OutlineTransparency = 0.1
                 currentHighlight.Adornee = currentTarget
@@ -240,7 +236,7 @@ local function onHeartbeat(dt)
                 circlePart.Name = "StrafeCircleVisual"
                 circlePart.Shape = Enum.PartType.Cylinder
                 circlePart.Material = Enum.Material.Neon
-                circlePart.Color = Color3.fromRGB(0, 255, 150) -- 発光するミントグリーン
+                circlePart.Color = Color3.fromRGB(0, 255, 150) 
                 circlePart.Transparency = 0.82
                 circlePart.Anchored = true
                 circlePart.CanCollide = false
@@ -249,11 +245,9 @@ local function onHeartbeat(dt)
                 circlePart.Parent = workspace.Terrain
             end
             
-            -- 設定したDistanceを半径として円のサイズを更新（シリンダーの厚さは0.05で固定）
             local sizeDiameter = TargetStrafe.Settings.DistanceValue * 2
             circlePart.Size = Vector3.new(0.05, sizeDiameter, sizeDiameter)
             
-            -- ターゲットの足元に水平にして設置
             local floorOffset = getPivotOffset(currentTarget)
             local floorPos = targetPos - Vector3.new(0, floorOffset, 0)
             circlePart.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90))
@@ -283,7 +277,6 @@ local function onHeartbeat(dt)
                 tracerBeam.Transparency = NumberSequence.new(0.4)
                 tracerBeam.Parent = workspace.Terrain
             else
-                -- プレイヤーや敵がリスポーンした場合の再アタッチ補正
                 if localAttachment.Parent ~= myRoot then localAttachment.Parent = myRoot end
                 if targetAttachment.Parent ~= targetRoot then targetAttachment.Parent = targetRoot end
             end
@@ -302,10 +295,6 @@ local function onHeartbeat(dt)
             end
         end
 
-        -- ========================================================
-        -- 【旋回・移動処理】
-        -- ========================================================
-        
         -- 角度を更新
         theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt) % (math.pi * 2)
         
@@ -335,7 +324,7 @@ local function onHeartbeat(dt)
         -- 奈落に落ちそう or 壁に衝突しそうな場合、クールダウンを考慮して方向転換
         if (isVoid or isWall) and (os.clock() - lastDirectionSwitchTime > 0.5) then
             print(string.format("[TargetStrafe Debug] 壁または奈落を検知。反転します。 (Void: %s, Wall: %s)", tostring(isVoid), tostring(isWall)))
-            direction = -direction -- 回転方向を反転
+            direction = -direction 
             lastDirectionSwitchTime = os.clock()
             theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt * 3) % (math.pi * 2) 
             return 
