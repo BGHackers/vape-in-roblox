@@ -12,7 +12,7 @@ local TargetStrafe = {
     TargetGame = "lucky_blocks"
 }
 
--- 設定のデフォルト値
+-- 設定のデフォルト値（RGBおよび新ビジュアル設定を追加）
 TargetStrafe.Settings = {
     DistanceValue = 6,
     SpeedValue = 12,
@@ -20,7 +20,10 @@ TargetStrafe.Settings = {
     AutoJump = true,
     DrawCircle = true,       
     TargetHighlight = true,  
-    TargetTracer = true      
+    TargetTracer = true,
+    DrawBillboard = true,    -- 3D頭上HUDのデフォルト
+    Rainbow = true,          -- レインボーモードのデフォルト
+    Color = Color3.fromRGB(0, 255, 150) -- デフォルトカラー（ネオングリーン）
 }
 
 -- 変数の初期化
@@ -41,6 +44,7 @@ local circlePart = nil
 local tracerBeam = nil
 local localAttachment = nil
 local targetAttachment = nil
+local targetBillboard = nil -- 追加: 3D HUD
 
 -- UIコンポーネントを保持するテーブル
 local UI = {}
@@ -50,7 +54,6 @@ local function getPivotOffset(model)
     local humanoid = model:FindFirstChildOfClass("Humanoid")
     if not humanoid then return 2.0 end -- デフォルト値
 
-    -- 【エラー修正箇所】Enum.RigType ではなく Enum.HumanoidRigType が正解です
     if humanoid.RigType == Enum.HumanoidRigType.R6 then
         return 2.5 -- R6アバターの標準的な高さ
     else
@@ -80,6 +83,10 @@ local function cleanupVisuals()
     if targetAttachment then
         targetAttachment:Destroy()
         targetAttachment = nil
+    end
+    if targetBillboard then
+        targetBillboard:Destroy()
+        targetBillboard = nil
     end
 end
 
@@ -138,6 +145,7 @@ function TargetStrafe.Init(moduleObj)
         Function = function(state) TargetStrafe.Settings.AutoJump = state end
     })
 
+    -- 【ビジュアルUI設定】
     UI.DrawCircle = moduleObj:CreateToggle({
         Name = "Draw Strafe Circle",
         Default = TargetStrafe.Settings.DrawCircle,
@@ -155,8 +163,27 @@ function TargetStrafe.Init(moduleObj)
         Default = TargetStrafe.Settings.TargetTracer,
         Function = function(state) TargetStrafe.Settings.TargetTracer = state end
     })
+
+    -- 【新規UI】近未来風HUDとカラー設定の追加
+    UI.DrawBillboard = moduleObj:CreateToggle({
+        Name = "3D Floating HUD",
+        Default = TargetStrafe.Settings.DrawBillboard,
+        Function = function(state) TargetStrafe.Settings.DrawBillboard = state end
+    })
+
+    UI.Rainbow = moduleObj:CreateToggle({
+        Name = "Rainbow RGB Mode",
+        Default = TargetStrafe.Settings.Rainbow,
+        Function = function(state) TargetStrafe.Settings.Rainbow = state end
+    })
+
+    UI.Color = moduleObj:CreateColorPicker({
+        Name = "Theme Color (Non-RGB)",
+        Color = TargetStrafe.Settings.Color,
+        Function = function(val) TargetStrafe.Settings.Color = val end
+    })
     
-    print("[TargetStrafe Debug] UIおよび新規トグルの作成が完了しました。")
+    print("[TargetStrafe Debug] すべてのUIの作成が完了しました。")
 end
 
 -- Strafe処理の本体
@@ -181,8 +208,7 @@ local function onHeartbeat(dt)
         end
         
         local targetName = currentTarget and currentTarget.Name or "なし"
-        print(string.format("[TargetStrafe Debug] ステータス: %s | ターゲット: %s | サークル表示: %s | ハイライト: %s | トレーサー: %s", 
-            status, targetName, tostring(TargetStrafe.Settings.DrawCircle), tostring(TargetStrafe.Settings.TargetHighlight), tostring(TargetStrafe.Settings.TargetTracer)))
+        print(string.format("[TargetStrafe Debug] ステータス: %s | ターゲット: %s", status, targetName))
     end
 
     local myCharacter = lplr.Character
@@ -210,18 +236,31 @@ local function onHeartbeat(dt)
             lastTargetName = targetName
         end
 
+        -- ========================================================
+        -- 【色のリアルタイム管理 (RGB レインボー判定)】
+        -- ========================================================
+        local currentVisualColor = TargetStrafe.Settings.Color
+        if TargetStrafe.Settings.Rainbow then
+            local hue = (os.clock() * 0.15) % 1 -- 滑らかな変化スピード
+            currentVisualColor = Color3.fromHSV(hue, 0.85, 1)
+        end
+
+        -- ========================================================
+        -- 【ビジュアル処理のリアルタイム描画とアニメーション】
+        -- ========================================================
+        
         -- 1. ターゲットハイライト (Highlight)
         if TargetStrafe.Settings.TargetHighlight then
             if not currentHighlight or currentHighlight.Parent ~= currentTarget then
                 if currentHighlight then currentHighlight:Destroy() end
                 currentHighlight = Instance.new("Highlight")
-                currentHighlight.FillColor = Color3.fromRGB(0, 255, 255) 
                 currentHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
-                currentHighlight.FillTransparency = 0.6
+                currentHighlight.FillTransparency = 0.65
                 currentHighlight.OutlineTransparency = 0.1
                 currentHighlight.Adornee = currentTarget
                 currentHighlight.Parent = currentTarget
             end
+            currentHighlight.FillColor = currentVisualColor -- RGBまたは選択色を反映
         else
             if currentHighlight then
                 currentHighlight:Destroy()
@@ -229,15 +268,13 @@ local function onHeartbeat(dt)
             end
         end
 
-        -- 2. 旋回サークル (Cylinder)
+        -- 2. 旋回サークル (Cylinder) & 拡張パルス回転アニメーション
         if TargetStrafe.Settings.DrawCircle then
             if not circlePart then
                 circlePart = Instance.new("Part")
                 circlePart.Name = "StrafeCircleVisual"
                 circlePart.Shape = Enum.PartType.Cylinder
                 circlePart.Material = Enum.Material.Neon
-                circlePart.Color = Color3.fromRGB(0, 255, 150) 
-                circlePart.Transparency = 0.82
                 circlePart.Anchored = true
                 circlePart.CanCollide = false
                 circlePart.CanQuery = false
@@ -245,12 +282,18 @@ local function onHeartbeat(dt)
                 circlePart.Parent = workspace.Terrain
             end
             
-            local sizeDiameter = TargetStrafe.Settings.DistanceValue * 2
-            circlePart.Size = Vector3.new(0.05, sizeDiameter, sizeDiameter)
+            -- 呼吸パルス（サイズと不透明度がゆったりと脈打つエフェクト）
+            local pulse = math.sin(os.clock() * 4.5) * 0.08
+            local sizeDiameter = (TargetStrafe.Settings.DistanceValue * 2) + (pulse * 2)
             
+            circlePart.Color = currentVisualColor
+            circlePart.Transparency = 0.82 + (pulse * 0.4)
+            circlePart.Size = Vector3.new(0.04 + (math.abs(pulse) * 0.1), sizeDiameter, sizeDiameter)
+            
+            -- ターゲットの足元に設置し、ゆっくりと自転させる (SFロックオン風)
             local floorOffset = getPivotOffset(currentTarget)
             local floorPos = targetPos - Vector3.new(0, floorOffset, 0)
-            circlePart.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90))
+            circlePart.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(os.clock() * 1.5, 0, 0)
         else
             if circlePart then
                 circlePart:Destroy()
@@ -270,16 +313,16 @@ local function onHeartbeat(dt)
                 tracerBeam = Instance.new("Beam")
                 tracerBeam.Attachment0 = localAttachment
                 tracerBeam.Attachment1 = targetAttachment
-                tracerBeam.Width0 = 0.12
-                tracerBeam.Width1 = 0.12
+                tracerBeam.Width0 = 0.15
+                tracerBeam.Width1 = 0.15
                 tracerBeam.FaceCamera = true
-                tracerBeam.Color = ColorSequence.new(Color3.fromRGB(0, 255, 150))
-                tracerBeam.Transparency = NumberSequence.new(0.4)
+                tracerBeam.Transparency = NumberSequence.new(0.3)
                 tracerBeam.Parent = workspace.Terrain
             else
                 if localAttachment.Parent ~= myRoot then localAttachment.Parent = myRoot end
                 if targetAttachment.Parent ~= targetRoot then targetAttachment.Parent = targetRoot end
             end
+            tracerBeam.Color = ColorSequence.new(currentVisualColor)
         else
             if tracerBeam then
                 tracerBeam:Destroy()
@@ -295,6 +338,91 @@ local function onHeartbeat(dt)
             end
         end
 
+        -- 4. 近未来風 3D フローティング頭上HUD (BillboardGui)
+        if TargetStrafe.Settings.DrawBillboard then
+            if not targetBillboard then
+                targetBillboard = Instance.new("BillboardGui")
+                targetBillboard.Size = UDim2.new(0, 160, 0, 50)
+                targetBillboard.AlwaysOnTop = true
+                targetBillboard.StudsOffset = Vector3.new(0, 3.2, 0) -- 頭上に浮かせる
+                
+                -- メインフレーム
+                local frame = Instance.new("Frame")
+                frame.Name = "MainFrame"
+                frame.Size = UDim2.new(1, 0, 1, 0)
+                frame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+                frame.BackgroundTransparency = 0.25
+                frame.BorderSizePixel = 0
+                
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0, 8)
+                corner.Parent = frame
+                
+                -- ネオン枠線（UIStroke）
+                local stroke = Instance.new("UIStroke")
+                stroke.Name = "BorderStroke"
+                stroke.Thickness = 1.8
+                stroke.Transparency = 0.15
+                stroke.Parent = frame
+                
+                -- ロックオンヘッダーラベル
+                local title = Instance.new("TextLabel")
+                title.Size = UDim2.new(1, 0, 0.4, 0)
+                title.BackgroundTransparency = 1
+                title.Text = "⚡ SYSTEM LOCKED"
+                title.TextColor3 = Color3.fromRGB(255, 60, 60)
+                title.TextSize = 10
+                title.Font = Enum.Font.GothamBold
+                title.Parent = frame
+                
+                -- プレイヤー名とステータス
+                local infoLabel = Instance.new("TextLabel")
+                infoLabel.Name = "InfoLabel"
+                infoLabel.Size = UDim2.new(1, 0, 0.6, 0)
+                infoLabel.Position = UDim2.new(0, 0, 0.4, 0)
+                infoLabel.BackgroundTransparency = 1
+                infoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                infoLabel.TextSize = 11
+                infoLabel.Font = Enum.Font.GothamSemibold
+                infoLabel.Parent = frame
+                
+                frame.Parent = targetBillboard
+                targetBillboard.Adornee = targetRoot
+                targetBillboard.Parent = workspace.Terrain
+            else
+                if targetBillboard.Adornee ~= targetRoot then
+                    targetBillboard.Adornee = targetRoot
+                end
+                
+                -- HUDのフレーム枠線の色をリアルタイム更新 (RGB連動)
+                local frame = targetBillboard:FindFirstChild("MainFrame")
+                if frame then
+                    local stroke = frame:FindFirstChild("BorderStroke")
+                    if stroke then
+                        stroke.Color = currentVisualColor
+                    end
+                    
+                    -- HPと距離を毎フレーム更新
+                    local infoLabel = frame:FindFirstChild("InfoLabel")
+                    if infoLabel then
+                        local distance = math.round((myPos - targetPos).Magnitude)
+                        local targetHumanoid = currentTarget:FindFirstChildOfClass("Humanoid")
+                        local hp = targetHumanoid and math.round(targetHumanoid.Health) or 0
+                        infoLabel.Text = string.format("%s\n%d HP | %d studs", targetName, hp, distance)
+                    end
+                end
+            end
+        else
+            if targetBillboard then
+                targetBillboard:Destroy()
+                targetBillboard = nil
+            end
+        end
+
+        -- ========================================================
+        -- 【旋回・移動処理】
+        -- ========================================================
+        
         -- 角度を更新
         theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt) % (math.pi * 2)
         
