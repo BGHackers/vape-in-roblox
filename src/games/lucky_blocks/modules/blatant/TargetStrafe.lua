@@ -5,6 +5,9 @@ local Players = game:GetService("Players")
 -- ローカルプレイヤー
 local lplr = Players.LocalPlayer
 
+-- UIテーブルの初期化 (スクリプトの最上部に配置して確実にnilを回避します)
+local UI = {}
+
 -- ========================================================
 -- 【TargetStrafe モジュールの構築】
 -- ========================================================
@@ -34,7 +37,6 @@ local theta, direction, lastDirectionSwitchTime = 0, 1, 0
 local lastPeriodicLog, lastTargetName, firstHeartbeatFired = 0, nil, false
 local currentHighlight, tracerBeam, localAttachment, targetAttachment, targetBillboard = nil, nil, nil, nil, nil
 local orbitSpheres = {}
-local UI = {}
 
 -- ========================================================
 -- 【ヘルパー関数群（コード削減用）】
@@ -201,6 +203,8 @@ end
 
 -- UI設定の構築
 function TargetStrafe.Init(moduleObj)
+    UI = UI or {} -- 万が一の安全策（nil回避）
+
     UI.Distance = moduleObj:CreateSlider({
         Name = "Strafe Distance",
         Min = 2, Max = 20,
