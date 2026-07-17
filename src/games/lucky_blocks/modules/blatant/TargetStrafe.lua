@@ -5,6 +5,186 @@ local Players = game:GetService("Players")
 -- ローカルプレイヤー
 local lplr = Players.LocalPlayer
 
+-- ========================================================
+-- 【entitylib の拡張・特殊ゲーム対応処理】
+-- ========================================================
+local entitylib = shared.vapeentitylib
+if entitylib then
+    -- 元のライブラリの関数を事前に退避
+    local oldGetUpdateConnections = entitylib.getUpdateConnections
+    local oldAddEntity = entitylib.addEntity
+
+    -- 安全に現在のHPを取得するヘルパー関数 (1_8arenaなどの特殊仕様 ＋ 標準仕様のハイブリッド)
+    local function getEntityHealth(plr, char, hum)
+        -- 1. Player配下の HealthValue を最優先でチェック
+        if plr then
+            local healthVal = plr:FindFirstChild('HealthValue')
+            if healthVal then
+                return healthVal.Value
+            end
+        end
+        -- 2. Character配下の HealthValue をチェック
+        if char and typeof(char) == "Instance" then
+            local healthVal = char:FindFirstChild('HealthValue')
+            if healthVal then
+                return healthVal.Value
+            end
+        end
+        -- 3. 標準の Humanoid.Health をチェック
+        if hum and typeof(hum) == "Instance" and hum:IsA("Humanoid") then
+            return hum.Health
+        end
+        return 100
+    end
+
+    -- HP同期用のシグナル接続を取得する関数 (全ゲーム対応仕様)
+    entitylib.getUpdateConnections = function(ent)
+        local connections = {}
+        
+        -- 1. Player配下の HealthValue の監視
+        if ent.Player then
+            local healthVal = ent.Player:FindFirstChild('HealthValue')
+            if healthVal then
+                table.insert(connections, healthVal:GetPropertyChangedSignal('Value'))
+            end
+        end
+        
+        -- 2. Character配下の HealthValue の監視
+        if ent.Character and typeof(ent.Character) == "Instance" then
+            local healthVal = ent.Character:FindFirstChild('HealthValue')
+            if healthVal then
+                table.insert(connections, healthVal:GetPropertyChangedSignal('Value'))
+            end
+        end
+        
+        -- 3. 標準の Humanoid.Health の監視
+        if ent.Humanoid and typeof(ent.Humanoid) == "Instance" and ent.Humanoid:IsA("Humanoid") then
+            table.insert(connections, ent.Humanoid:GetPropertyChangedSignal('Health'))
+        end
+        
+        -- 元の接続処理をマージして安全に返す (エラーを回避するためpcall)
+        local success, oldConnections = pcall(oldGetUpdateConnections, ent)
+        if success and type(oldConnections) == "table" then
+            for _, conn in ipairs(oldConnections) do
+                table.insert(connections, conn)
+            end
+        end
+        
+        return connections
+    end
+
+    -- エンティティ追加関数 (全ゲーム対応仕様)
+    entitylib.addEntity = function(char, plr, teamfunc)
+        if not char then return end
+
+        -- 1. キャラクターの実体（Instance）を解決
+        local charInstance = char
+        if plr == lplr then
+            -- 1_8arenaのローカルプレイヤーパスを最優先し、無ければ標準キャラクターにフォールバック
+            charInstance = typeof(char) == "Instance" and char 
+                or workspace:FindFirstChild("LocalCharacter_" .. lplr.Name) 
+                or lplr.Character
+        end
+
+        local hum = charInstance and typeof(charInstance) == "Instance" and charInstance:FindFirstChildOfClass('Humanoid')
+        local humrootpart = charInstance and typeof(charInstance) == "Instance" and (
+            charInstance:FindFirstChild('Torso') 
+			or charInstance:FindFirstChild('HumanoidRootPart')
+        )
+
+        -- 特殊な環境であるかを動的に判定
+        local isSpecialGame = workspace:FindFirstChild("OtherCharacters") ~= nil 
+            or workspace:FindFirstChild("LocalCharacter_" .. lplr.Name) ~= nil
+            or (charInstance and typeof(charInstance) == "Instance" and (charInstance:FindFirstChild("PlayerHitbox") or charInstance:FindFirstChild("HealthValue")))
+
+        -- 特殊な構造を持たない標準の通常ゲームであれば、ライブラリ本来の addEntity 処理に安全に委ねる
+        if not isSpecialGame then
+            return oldAddEntity(char, plr, teamfunc)
+        end
+
+        -- --- 以下、特殊仕様のゲームにおけるエンティティ追加ロジック ---
+        
+        -- ローカルプレイヤー
+        if plr == lplr then
+            local fallbackRoot = humrootpart or workspace.CurrentCamera.CameraSubject
+ head = (charInstance and typeof(charInstance) == "Instance" and charInstance:FindFirstChild('Head')) or fallbackRoot
+            local humanoidObj = hum or {GetState = function() end, Health = 100}
+
+            local entity = {
+                Connections = {},
+                Character = charInstance,
+                Health = getEntityHealth(plr, charInstance, humanoidObj),
+Head = head,
+                Humanoid = humanoidObj,
+                HumanoidRootPart = fallbackRoot,
+                HipHeight = (humanoidObj and typeof(humanoidObj) == "Instance" and humanoidObj:IsA("Humanoid") and humanoidObj.HipHeight) or 5,
+                MaxHealth = (humanoidObj and typeof(humanoidObj) == "Instance" and humanoidObj:IsA("Humanoid") and humanoidObj.MaxHealth) or 100,
+                NPC = false,
+                Player = plr,
+                RootPart = fallbackRoot,
+                TeamCheck = teamfunc
+            }
+
+            -- HP更新イベントの登録 ( getUpdateConnections を使用 )
+            for _, v in ipairs(entitylib.getUpdateConnections(entity)) do
+                table.insert(entity.Connections, v:Connect(function()
+                    entity.Health = getEntityHealth(plr, charInstance, humanoidObj)
+                    entitylib.Events.EntityUpdated:Fire(entity)
+                end))
+            end
+
+            entitylib.character = entity
+            entitylib.isAlive = true
+            entitylib.Events.LocalAdded:Fire(entity)
+            return
+        end
+
+        -- 他のプレイヤー/NPC
+        entitylib.EntityThreads[charInstance] = task.spawn(function()
+            local resolvedHum = hum or charInstance:WaitForChild('Humanoid', 10)
+            local resolvedRoot = humrootpart or charInstance:WaitForChild('Torso', 10) or charInstance:WaitForChild('HumanoidRootPart', 10)
+            local head = (charInstance and charInstance:FindFirstChild('Head')) or resolvedRoot
+
+            if resolvedHum and resolvedRoot then
+                local entity = {
+                    Connections = {},
+                    Character = charInstance,
+                    Health = getEntityHealth(plr, charInstance, resolvedHum),
+                    Head = head,
+                    Humanoid = resolvedHum,
+                    HumanoidRootPart = resolvedRoot,
+                    Hitbox = charInstance:FindFirstChild('PlayerHitbox') or charInstance,
+                    HipHeight = (resolvedHum and typeof(resolvedHum) == "Instance" and resolvedHum:IsA("Humanoid") and resolvedHum.HipHeight) or 3,
+                    MaxHealth = (resolvedHum and typeof(resolvedHum) == "Instance" and resolvedHum:IsA("Humanoid") and resolvedHum.MaxHealth) or 100,
+                    NPC = plr == nil,
+                    Player = plr,
+                    RootPart = resolvedRoot,
+                    TeamCheck = teamfunc
+                }
+
+                entity.Targetable = entitylib.targetCheck(entity)
+                
+                -- HP更新イベントの登録
+                for _, v in ipairs(entitylib.getUpdateConnections(entity)) do
+                    table.insert(entity.Connections, v:Connect(function()
+                        entity.Health = getEntityHealth(plr, charInstance, resolvedHum)
+                        entitylib.Events.EntityUpdated:Fire(entity)
+                    end))
+                end
+
+                table.insert(entitylib.List, entity)
+                entitylib.Events.EntityAdded:Fire(entity)
+            end
+
+            entitylib.EntityThreads[charInstance] = nil
+        end)
+    end
+end
+
+-- ========================================================
+-- 【TargetStrafe モジュールの構築】
+-- ========================================================
+
 -- モジュールの基本情報
 local TargetStrafe = {
     Name = "TargetStrafe",
@@ -12,18 +192,17 @@ local TargetStrafe = {
     TargetGame = "lucky_blocks"
 }
 
--- 設定のデフォルト値
+-- 設定のデフォルト値 (Rainbowを削除、Colorのデフォルトを白に設定)
 TargetStrafe.Settings = {
     DistanceValue = 6,
     SpeedValue = 12,
     SearchRangeValue = 80,
     AutoJump = true,
-    DrawCircle = true,       
+    DrawCircle = true,       -- 軌道エフェクトトグルの役割を継続
     TargetHighlight = true,  
     TargetTracer = true,
-    DrawBillboard = true,    -- 3D頭上HUDのデフォルト
-    Rainbow = true,          -- レインボーモードのデフォルト
-    Color = Color3.fromRGB(0, 255, 150) -- デフォルトカラー
+    DrawBillboard = true,    
+    Color = Color3.fromRGB(255, 255, 255) -- デフォルト：純白の球体
 }
 
 -- 変数の初期化
@@ -40,16 +219,15 @@ local firstHeartbeatFired = false
 
 -- ビジュアル管理用インスタンス
 local currentHighlight = nil
-local circlePart = nil
 local tracerBeam = nil
 local localAttachment = nil
 local targetAttachment = nil
 local targetBillboard = nil 
 
--- UIコンポーネントを保持するテーブル
-local UI = {}
+-- 球体軌道エフェクト用テーブル (3個の白いネオン球体を管理)
+local orbitSpheres = {}
 
--- アバターの高さ取得 (R6/R15対応)
+-- アバターの高さ計算 (R6/R15対応)
 local function getPivotOffset(model)
     local humanoid = model:FindFirstChildOfClass("Humanoid")
     if not humanoid then return 2.0 end
@@ -61,15 +239,55 @@ local function getPivotOffset(model)
     end
 end
 
--- クリーンアップ関数
+-- 白いネオン球体とその軌跡（Trail）を生成する関数
+local function createOrbitSpheres()
+    if #orbitSpheres > 0 then return end
+    for i = 1, 3 do
+        local sphere = Instance.new("Part")
+        sphere.Name = "OrbitSphere_" .. i
+        sphere.Shape = Enum.PartType.Ball
+        sphere.Size = Vector3.new(1.0, 1.0, 1.0) -- ほどよいサイズの球体
+        sphere.Material = Enum.Material.Neon
+        sphere.Color = TargetStrafe.Settings.Color
+        sphere.Anchored = true
+        sphere.CanCollide = false
+        sphere.CanQuery = false
+        sphere.CanTouch = false
+        sphere.Parent = workspace.Terrain
+
+        -- Trail（軌跡）用のアタッチメント2点
+        local att0 = Instance.new("Attachment")
+        att0.Name = "Att0"
+        att0.Position = Vector3.new(0, 0.35, 0)
+        att0.Parent = sphere
+
+        local att1 = Instance.new("Attachment")
+        att1.Name = "Att1"
+        att1.Position = Vector3.new(0, -0.35, 0)
+        att1.Parent = sphere
+
+        -- 美しいフェード軌跡の設定
+        local trail = Instance.new("Trail")
+        trail.Name = "Trail"
+        trail.Attachment0 = att0
+        trail.Attachment1 = att1
+        trail.Lifetime = 0.3
+        trail.Color = ColorSequence.new(TargetStrafe.Settings.Color)
+        trail.Transparency = NumberSequence.new(0.2, 1) -- なめらかに消える設定
+        trail.Parent = sphere
+
+        table.insert(orbitSpheres, {
+            Part = sphere,
+            Trail = trail
+        })
+    end
+end
+
+-- ビジュアルクリーンアップ
 local function cleanupVisuals()
     if currentHighlight then
         currentHighlight:Destroy()
         currentHighlight = nil
-    end
-    if circlePart then
-        circlePart:Destroy()
-        circlePart = nil
     end
     if tracerBeam then
         tracerBeam:Destroy()
@@ -87,6 +305,12 @@ local function cleanupVisuals()
         targetBillboard:Destroy()
         targetBillboard = nil
     end
+    for _, sphereData in ipairs(orbitSpheres) do
+        if sphereData.Part then
+            sphereData.Part:Destroy()
+        end
+    end
+    table.clear(orbitSpheres)
 end
 
 -- ターゲット取得
@@ -111,7 +335,7 @@ local function findClosestTarget(rangeLimit)
     return closestTarget
 end
 
--- モジュールの初期化（UI作成）
+-- UI構築
 function TargetStrafe.Init(moduleObj)
     print("[TargetStrafe Debug] Init関数が呼び出されました。UIを作成します。")
     
@@ -145,7 +369,7 @@ function TargetStrafe.Init(moduleObj)
     })
 
     UI.DrawCircle = moduleObj:CreateToggle({
-        Name = "Draw Strafe Circle",
+        Name = "Orbiting Spheres", -- 従来のサークルから変更
         Default = TargetStrafe.Settings.DrawCircle,
         Function = function(state) TargetStrafe.Settings.DrawCircle = state end
     })
@@ -168,14 +392,8 @@ function TargetStrafe.Init(moduleObj)
         Function = function(state) TargetStrafe.Settings.DrawBillboard = state end
     })
 
-    UI.Rainbow = moduleObj:CreateToggle({
-        Name = "Rainbow RGB Mode",
-        Default = TargetStrafe.Settings.Rainbow,
-        Function = function(state) TargetStrafe.Settings.Rainbow = state end
-    })
-
     UI.Color = moduleObj:CreateColorPicker({
-        Name = "Theme Color (Non-RGB)",
+        Name = "Theme Color",
         Color = TargetStrafe.Settings.Color,
         Function = function(val) TargetStrafe.Settings.Color = val end
     })
@@ -183,10 +401,10 @@ function TargetStrafe.Init(moduleObj)
     print("[TargetStrafe Debug] すべてのUIの作成が完了しました。")
 end
 
--- Strafe処理の本体
+-- Strafe・エフェクト処理の本体
 local function onHeartbeat(dt)
     if not firstHeartbeatFired then
-        print("[TargetStrafe Debug] Heartbeatループが正常に開始されました。")
+        print("[TargetStrafe Debug] Heartbeatループが開始されました。")
         firstHeartbeatFired = true
     end
 
@@ -231,10 +449,6 @@ local function onHeartbeat(dt)
         end
 
         local currentVisualColor = TargetStrafe.Settings.Color
-        if TargetStrafe.Settings.Rainbow then
-            local hue = (os.clock() * 0.15) % 1
-            currentVisualColor = Color3.fromHSV(hue, 0.85, 1)
-        end
 
         -- 1. ターゲットハイライト
         if TargetStrafe.Settings.TargetHighlight then
@@ -255,35 +469,35 @@ local function onHeartbeat(dt)
             end
         end
 
-        -- 2. 旋回サークル
+        -- 2. 白い球体の周回エフェクト (Orbit Spheres with Trails)
         if TargetStrafe.Settings.DrawCircle then
-            if not circlePart then
-                circlePart = Instance.new("Part")
-                circlePart.Name = "StrafeCircleVisual"
-                circlePart.Shape = Enum.PartType.Cylinder
-                circlePart.Material = Enum.Material.Neon
-                circlePart.Anchored = true
-                circlePart.CanCollide = false
-                circlePart.CanQuery = false
-                circlePart.CanTouch = false
-                circlePart.Parent = workspace.Terrain
-            end
+            createOrbitSpheres()
             
-            local pulse = math.sin(os.clock() * 4.5) * 0.08
-            local sizeDiameter = (TargetStrafe.Settings.DistanceValue * 2) + (pulse * 2)
-            
-            circlePart.Color = currentVisualColor
-            circlePart.Transparency = 0.82 + (pulse * 0.4)
-            circlePart.Size = Vector3.new(0.04 + (math.abs(pulse) * 0.1), sizeDiameter, sizeDiameter)
-            
+            local radius = TargetStrafe.Settings.DistanceValue * 0.85 -- 少し内側を回るように調整
+            local baseAngle = os.clock() * 5.0 -- 軌道の回転スピード
             local floorOffset = getPivotOffset(currentTarget)
-            local floorPos = targetPos - Vector3.new(0, floorOffset, 0)
-            circlePart.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(os.clock() * 1.5, 0, 0)
-        else
-            if circlePart then
-                circlePart:Destroy()
-                circlePart = nil
+
+            for i, sphereData in ipairs(orbitSpheres) do
+                -- 120度（2/3π）ずつ均等に間隔をあける
+                local angle = baseAngle + (i * (math.pi * 2 / 3))
+                
+                -- 立体的な波を描くスパイラル軌道計算
+                local xOffset = math.cos(angle) * radius
+                local zOffset = math.sin(angle) * radius
+                -- 球体がそれぞれダイナミックに上下運動するサイン波
+                local yOffset = (math.sin(angle) * 1.5) + (floorOffset * 0.4)
+                
+                local spherePos = targetPos + Vector3.new(xOffset, yOffset, zOffset)
+                
+                sphereData.Part.CFrame = CFrame.new(spherePos)
+                sphereData.Part.Color = currentVisualColor
+                sphereData.Trail.Color = ColorSequence.new(currentVisualColor)
             end
+        else
+            for _, sphereData in ipairs(orbitSpheres) do
+                if sphereData.Part then sphereData.Part:Destroy() end
+            end
+            table.clear(orbitSpheres)
         end
 
         -- 3. トレーサー
