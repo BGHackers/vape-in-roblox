@@ -12,7 +12,7 @@ local TargetStrafe = {
     TargetGame = "lucky_blocks"
 }
 
--- 設定のデフォルト値（RGBおよび新ビジュアル設定を追加）
+-- 設定のデフォルト値
 TargetStrafe.Settings = {
     DistanceValue = 6,
     SpeedValue = 12,
@@ -23,7 +23,7 @@ TargetStrafe.Settings = {
     TargetTracer = true,
     DrawBillboard = true,    -- 3D頭上HUDのデフォルト
     Rainbow = true,          -- レインボーモードのデフォルト
-    Color = Color3.fromRGB(0, 255, 150) -- デフォルトカラー（ネオングリーン）
+    Color = Color3.fromRGB(0, 255, 150) -- デフォルトカラー
 }
 
 -- 変数の初期化
@@ -44,25 +44,24 @@ local circlePart = nil
 local tracerBeam = nil
 local localAttachment = nil
 local targetAttachment = nil
-local targetBillboard = nil -- 追加: 3D HUD
+local targetBillboard = nil 
 
 -- UIコンポーネントを保持するテーブル
 local UI = {}
 
--- アバターの腰（HumanoidRootPart）の高さを取得する関数 (R6/R15対応)
+-- アバターの高さ取得 (R6/R15対応)
 local function getPivotOffset(model)
     local humanoid = model:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return 2.0 end -- デフォルト値
+    if not humanoid then return 2.0 end
 
     if humanoid.RigType == Enum.HumanoidRigType.R6 then
-        return 2.5 -- R6アバターの標準的な高さ
+        return 2.5
     else
-        -- R15アバターはHipHeightから計算
         return humanoid.HipHeight + (model.PrimaryPart.Size.Y / 2)
     end
 end
 
--- ビジュアル関連のインスタンスを安全に削除するクリーンアップ関数
+-- クリーンアップ関数
 local function cleanupVisuals()
     if currentHighlight then
         currentHighlight:Destroy()
@@ -90,7 +89,7 @@ local function cleanupVisuals()
     end
 end
 
--- 指定範囲内で最も近いプレイヤーをターゲットとして取得する関数
+-- ターゲット取得
 local function findClosestTarget(rangeLimit)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter.PrimaryPart
@@ -145,7 +144,6 @@ function TargetStrafe.Init(moduleObj)
         Function = function(state) TargetStrafe.Settings.AutoJump = state end
     })
 
-    -- 【ビジュアルUI設定】
     UI.DrawCircle = moduleObj:CreateToggle({
         Name = "Draw Strafe Circle",
         Default = TargetStrafe.Settings.DrawCircle,
@@ -164,7 +162,6 @@ function TargetStrafe.Init(moduleObj)
         Function = function(state) TargetStrafe.Settings.TargetTracer = state end
     })
 
-    -- 【新規UI】近未来風HUDとカラー設定の追加
     UI.DrawBillboard = moduleObj:CreateToggle({
         Name = "3D Floating HUD",
         Default = TargetStrafe.Settings.DrawBillboard,
@@ -193,7 +190,6 @@ local function onHeartbeat(dt)
         firstHeartbeatFired = true
     end
 
-    -- 2秒ごとのステータス出力
     if os.clock() - lastPeriodicLog > 2 then
         lastPeriodicLog = os.clock()
         local myCharacter = lplr.Character
@@ -220,7 +216,6 @@ local function onHeartbeat(dt)
         return
     end
 
-    -- ターゲットを検索
     currentTarget = findClosestTarget(TargetStrafe.Settings.SearchRangeValue)
     
     if currentTarget and currentTarget.PrimaryPart then
@@ -228,7 +223,6 @@ local function onHeartbeat(dt)
         local myPos = myRoot.Position
         local targetPos = targetRoot.Position
 
-        -- ターゲットが切り替わった場合は一度ビジュアルをリセット
         local targetName = currentTarget.Name
         if lastTargetName ~= targetName then
             print("[TargetStrafe Debug] ターゲットを新たに捕捉しました: " .. targetName)
@@ -236,20 +230,13 @@ local function onHeartbeat(dt)
             lastTargetName = targetName
         end
 
-        -- ========================================================
-        -- 【色のリアルタイム管理 (RGB レインボー判定)】
-        -- ========================================================
         local currentVisualColor = TargetStrafe.Settings.Color
         if TargetStrafe.Settings.Rainbow then
-            local hue = (os.clock() * 0.15) % 1 -- 滑らかな変化スピード
+            local hue = (os.clock() * 0.15) % 1
             currentVisualColor = Color3.fromHSV(hue, 0.85, 1)
         end
 
-        -- ========================================================
-        -- 【ビジュアル処理のリアルタイム描画とアニメーション】
-        -- ========================================================
-        
-        -- 1. ターゲットハイライト (Highlight)
+        -- 1. ターゲットハイライト
         if TargetStrafe.Settings.TargetHighlight then
             if not currentHighlight or currentHighlight.Parent ~= currentTarget then
                 if currentHighlight then currentHighlight:Destroy() end
@@ -260,7 +247,7 @@ local function onHeartbeat(dt)
                 currentHighlight.Adornee = currentTarget
                 currentHighlight.Parent = currentTarget
             end
-            currentHighlight.FillColor = currentVisualColor -- RGBまたは選択色を反映
+            currentHighlight.FillColor = currentVisualColor
         else
             if currentHighlight then
                 currentHighlight:Destroy()
@@ -268,7 +255,7 @@ local function onHeartbeat(dt)
             end
         end
 
-        -- 2. 旋回サークル (Cylinder) & 拡張パルス回転アニメーション
+        -- 2. 旋回サークル
         if TargetStrafe.Settings.DrawCircle then
             if not circlePart then
                 circlePart = Instance.new("Part")
@@ -282,7 +269,6 @@ local function onHeartbeat(dt)
                 circlePart.Parent = workspace.Terrain
             end
             
-            -- 呼吸パルス（サイズと不透明度がゆったりと脈打つエフェクト）
             local pulse = math.sin(os.clock() * 4.5) * 0.08
             local sizeDiameter = (TargetStrafe.Settings.DistanceValue * 2) + (pulse * 2)
             
@@ -290,7 +276,6 @@ local function onHeartbeat(dt)
             circlePart.Transparency = 0.82 + (pulse * 0.4)
             circlePart.Size = Vector3.new(0.04 + (math.abs(pulse) * 0.1), sizeDiameter, sizeDiameter)
             
-            -- ターゲットの足元に設置し、ゆっくりと自転させる (SFロックオン風)
             local floorOffset = getPivotOffset(currentTarget)
             local floorPos = targetPos - Vector3.new(0, floorOffset, 0)
             circlePart.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(os.clock() * 1.5, 0, 0)
@@ -301,7 +286,7 @@ local function onHeartbeat(dt)
             end
         end
 
-        -- 3. トレーサーレーザー線 (Beam)
+        -- 3. トレーサー
         if TargetStrafe.Settings.TargetTracer then
             if not tracerBeam then
                 localAttachment = Instance.new("Attachment")
@@ -338,53 +323,81 @@ local function onHeartbeat(dt)
             end
         end
 
-        -- 4. 近未来風 3D フローティング頭上HUD (BillboardGui)
+        -- 4. Vape V4 風 3DフローティングHUD
         if TargetStrafe.Settings.DrawBillboard then
             if not targetBillboard then
                 targetBillboard = Instance.new("BillboardGui")
-                targetBillboard.Size = UDim2.new(0, 160, 0, 50)
+                targetBillboard.Size = UDim2.new(0, 150, 0, 48)
                 targetBillboard.AlwaysOnTop = true
-                targetBillboard.StudsOffset = Vector3.new(0, 3.2, 0) -- 頭上に浮かせる
+                targetBillboard.StudsOffset = Vector3.new(0, 3.2, 0)
                 
-                -- メインフレーム
+                -- メインフレーム (Vape風半透明ダーク)
                 local frame = Instance.new("Frame")
                 frame.Name = "MainFrame"
                 frame.Size = UDim2.new(1, 0, 1, 0)
-                frame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-                frame.BackgroundTransparency = 0.25
+                frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+                frame.BackgroundTransparency = 0.5
                 frame.BorderSizePixel = 0
                 
                 local corner = Instance.new("UICorner")
-                corner.CornerRadius = UDim.new(0, 8)
+                corner.CornerRadius = UDim.new(0, 6)
                 corner.Parent = frame
                 
-                -- ネオン枠線（UIStroke）
+                -- 枠線
                 local stroke = Instance.new("UIStroke")
                 stroke.Name = "BorderStroke"
-                stroke.Thickness = 1.8
-                stroke.Transparency = 0.15
+                stroke.Thickness = 1
+                stroke.Transparency = 0.6
+                stroke.Color = Color3.fromRGB(255, 255, 255)
                 stroke.Parent = frame
                 
-                -- ロックオンヘッダーラベル
-                local title = Instance.new("TextLabel")
-                title.Size = UDim2.new(1, 0, 0.4, 0)
-                title.BackgroundTransparency = 1
-                title.Text = "⚡ SYSTEM LOCKED"
-                title.TextColor3 = Color3.fromRGB(255, 60, 60)
-                title.TextSize = 10
-                title.Font = Enum.Font.GothamBold
-                title.Parent = frame
+                -- プレイヤー名
+                local nameLabel = Instance.new("TextLabel")
+                nameLabel.Name = "NameLabel"
+                nameLabel.Size = UDim2.new(1, -12, 0.4, 0)
+                nameLabel.Position = UDim2.new(0, 6, 0.1, 0)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                nameLabel.TextSize = 10
+                nameLabel.Font = Enum.Font.GothamSemibold
+                nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+                nameLabel.Parent = frame
                 
-                -- プレイヤー名とステータス
-                local infoLabel = Instance.new("TextLabel")
-                infoLabel.Name = "InfoLabel"
-                infoLabel.Size = UDim2.new(1, 0, 0.6, 0)
-                infoLabel.Position = UDim2.new(0, 0, 0.4, 0)
-                infoLabel.BackgroundTransparency = 1
-                infoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                infoLabel.TextSize = 11
-                infoLabel.Font = Enum.Font.GothamSemibold
-                infoLabel.Parent = frame
+                -- 距離
+                local distLabel = Instance.new("TextLabel")
+                distLabel.Name = "DistLabel"
+                distLabel.Size = UDim2.new(1, -12, 0.3, 0)
+                distLabel.Position = UDim2.new(0, 6, 0.45, 0)
+                distLabel.BackgroundTransparency = 1
+                distLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+                distLabel.TextSize = 8
+                distLabel.Font = Enum.Font.Gotham
+                distLabel.TextXAlignment = Enum.TextXAlignment.Left
+                distLabel.Parent = frame
+
+                -- ヘルスバー背景
+                local hpBg = Instance.new("Frame")
+                hpBg.Name = "HPBackground"
+                hpBg.Size = UDim2.new(1, -12, 0.12, 0)
+                hpBg.Position = UDim2.new(0, 6, 0.78, 0)
+                hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                hpBg.BorderSizePixel = 0
+                hpBg.Parent = frame
+
+                local hpCorner = Instance.new("UICorner")
+                hpCorner.CornerRadius = UDim.new(0, 2)
+                hpCorner.Parent = hpBg
+
+                -- ヘルスバー本体
+                local hpBar = Instance.new("Frame")
+                hpBar.Name = "HPBar"
+                hpBar.Size = UDim2.new(1, 0, 1, 0)
+                hpBar.BorderSizePixel = 0
+                hpBar.Parent = hpBg
+
+                local barCorner = Instance.new("UICorner")
+                barCorner.CornerRadius = UDim.new(0, 2)
+                barCorner.Parent = hpBar
                 
                 frame.Parent = targetBillboard
                 targetBillboard.Adornee = targetRoot
@@ -394,21 +407,29 @@ local function onHeartbeat(dt)
                     targetBillboard.Adornee = targetRoot
                 end
                 
-                -- HUDのフレーム枠線の色をリアルタイム更新 (RGB連動)
                 local frame = targetBillboard:FindFirstChild("MainFrame")
                 if frame then
-                    local stroke = frame:FindFirstChild("BorderStroke")
-                    if stroke then
-                        stroke.Color = currentVisualColor
-                    end
+                    local targetHumanoid = currentTarget:FindFirstChildOfClass("Humanoid")
+                    local hp = targetHumanoid and targetHumanoid.Health or 0
+                    local maxHp = targetHumanoid and targetHumanoid.MaxHealth or 100
+                    local hpPercent = math.clamp(hp / maxHp, 0, 1)
                     
-                    -- HPと距離を毎フレーム更新
-                    local infoLabel = frame:FindFirstChild("InfoLabel")
-                    if infoLabel then
+                    local nameLabel = frame:FindFirstChild("NameLabel")
+                    if nameLabel then
+                        nameLabel.Text = string.format("%s (%d HP)", targetName, math.round(hp))
+                    end
+
+                    local distLabel = frame:FindFirstChild("DistLabel")
+                    if distLabel then
                         local distance = math.round((myPos - targetPos).Magnitude)
-                        local targetHumanoid = currentTarget:FindFirstChildOfClass("Humanoid")
-                        local hp = targetHumanoid and math.round(targetHumanoid.Health) or 0
-                        infoLabel.Text = string.format("%s\n%d HP | %d studs", targetName, hp, distance)
+                        distLabel.Text = string.format("Distance: %d studs", distance)
+                    end
+
+                    local hpBg = frame:FindFirstChild("HPBackground")
+                    local hpBar = hpBg and hpBg:FindFirstChild("HPBar")
+                    if hpBar then
+                        hpBar.Size = UDim2.new(hpPercent, 0, 1, 0)
+                        hpBar.BackgroundColor3 = currentVisualColor
                     end
                 end
             end
@@ -422,34 +443,26 @@ local function onHeartbeat(dt)
         -- ========================================================
         -- 【旋回・移動処理】
         -- ========================================================
-        
-        -- 角度を更新
         theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt) % (math.pi * 2)
         
-        -- 次の目標座標を計算 (XとZのみ)
         local desiredDistance = TargetStrafe.Settings.DistanceValue
         local nextX = targetPos.X + math.cos(theta) * desiredDistance
         local nextZ = targetPos.Z + math.sin(theta) * desiredDistance
         local nextPos = Vector3.new(nextX, myPos.Y, nextZ)
         
-        -- 移動方向ベクトルを計算
         local moveDirection = (nextPos - myPos).Unit
 
-        -- レイキャスト用のパラメータ設定
         local raycastParams = RaycastParams.new()
         raycastParams.FilterType = Enum.RaycastFilterType.Exclude
         raycastParams.FilterDescendantsInstances = {myCharacter}
 
-        -- 1. 虚空（奈落）検知
         local groundCheckOrigin = myPos + moveDirection * 2
         local groundRay = workspace:Raycast(groundCheckOrigin, Vector3.new(0, -50, 0), raycastParams)
         local isVoid = not groundRay
 
-        -- 2. 壁検知
         local wallRay = workspace:Raycast(myPos, moveDirection * 2, raycastParams)
         local isWall = wallRay and wallRay.Instance and wallRay.Instance.CanCollide
 
-        -- 奈落に落ちそう or 壁に衝突しそうな場合、クールダウンを考慮して方向転換
         if (isVoid or isWall) and (os.clock() - lastDirectionSwitchTime > 0.5) then
             print(string.format("[TargetStrafe Debug] 壁または奈落を検知。反転します。 (Void: %s, Wall: %s)", tostring(isVoid), tostring(isWall)))
             direction = -direction 
@@ -458,25 +471,19 @@ local function onHeartbeat(dt)
             return 
         end
 
-        -- スムーズな移動
         humanoid:Move(moveDirection, false)
-        
-        -- ターゲットの方を常に見るようにキャラクターの向きを更新
         myRoot.CFrame = CFrame.lookAt(myPos, Vector3.new(targetPos.X, myPos.Y, targetPos.Z))
         
-        -- 自動ジャンプ (BHop)
         if TargetStrafe.Settings.AutoJump and humanoid.FloorMaterial ~= Enum.Material.Air then
             humanoid.Jump = true
         end
     else
-        -- ターゲットを見失った場合
         if lastTargetName ~= nil then
             print("[TargetStrafe Debug] ターゲットを見失いました。描画を消去します。")
             cleanupVisuals()
             lastTargetName = nil
         end
 
-        -- 移動を停止
         if humanoid.MoveDirection ~= Vector3.zero then
             humanoid:Move(Vector3.zero, false)
         end
@@ -488,7 +495,6 @@ function TargetStrafe.Callback(enabled)
     print("[TargetStrafe Debug] Callbackが呼び出されました。設定値(Enabled): " .. tostring(enabled))
     
     if enabled then
-        -- 初期化
         theta = 0
         direction = 1
         lastDirectionSwitchTime = 0
@@ -497,21 +503,17 @@ function TargetStrafe.Callback(enabled)
         firstHeartbeatFired = false
         lastPeriodicLog = 0
         
-        -- 接続を作成し、変数に保存
         connection = RunService.Heartbeat:Connect(onHeartbeat)
         print("[TargetStrafe Debug] Heartbeatイベントへの接続に成功しました。")
     else
-        -- 接続が存在すれば、それを切断する
         if connection then
             connection:Disconnect()
             connection = nil
             print("[TargetStrafe Debug] Heartbeatイベントを切断しました。")
         end
         
-        -- ビジュアル表示を全て削除して初期化
         cleanupVisuals()
         
-        -- 念のため、移動を停止させる
         if lplr.Character then
             local humanoid = lplr.Character:FindFirstChildOfClass("Humanoid")
             if humanoid then
