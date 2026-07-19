@@ -38,13 +38,12 @@ local lastHeartbeatCheck = 0
 -- 【ヘルパー関数群】
 -- ========================================================
 
--- 壁と奈落を検知する（デバッグ情報付き）
+-- 壁と奈落を検知する
 local function checkObstacles(myPos, dir, char)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.FilterDescendantsInstances = {char}
     
-    -- 下方向への判定を深く（-100 studs）して、ジャンプ中（Freefall）でも床を検知しやすくする
     local rayDown = workspace:Raycast(myPos + dir * 2.5, Vector3.new(0, -100, 0), params)
     local isVoid = not rayDown
     
@@ -118,7 +117,7 @@ local function onHeartbeat(dt)
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
     local humanoid = myCharacter and myCharacter:FindFirstChildOfClass("Humanoid")
     
-    -- 5秒おきに動作中であることをログに表示（動作の生存確認）
+    -- 5秒おきの生存チェック
     if os.clock() - lastHeartbeatCheck > 5 then
         lastHeartbeatCheck = os.clock()
         local charExists = myCharacter ~= nil
@@ -138,18 +137,23 @@ local function onHeartbeat(dt)
         local myPos, targetPos = myRoot.Position, targetRoot.Position
         local targetName = currentTarget.Name
 
-        -- ターゲットの切り替わり
+        -- ターゲットが新規検知・または切り替わった場合
         if lastTargetName ~= targetName then
             print("[TargetStrafe Debug] Target Changed: " .. targetName .. " | Distance: " .. math.round((myPos - targetPos).Magnitude) .. " studs")
             lastTargetName = targetName
+            
+            -- 現在地の角度を逆算してthetaの初期値に設定
+            local relative = myPos - targetPos
+            theta = math.atan2(relative.Z, relative.X)
+            print("[TargetStrafe Debug] Initialized start theta to: " .. tostring(theta))
         end
 
-        -- 旋回と移動方向の初期計算
-        theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt) % (math.pi * 2)
+        -- 旋回速度を調整
+        theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt) % (math.pi * 2)
         local desiredDistance = TargetStrafe.Settings.DistanceValue
         local nextPos = Vector3.new(
             targetPos.X + math.cos(theta) * desiredDistance,
-            myPos.Y,
+            myPos.Y, -- 自身のジャンプ時の高さをキープ
             targetPos.Z + math.sin(theta) * desiredDistance
         )
         local moveDirection = (nextPos - myPos).Unit
@@ -161,32 +165,27 @@ local function onHeartbeat(dt)
             lastDirectionSwitchTime = os.clock()
             print("[TargetStrafe Debug] " .. obstacleType .. " detected! Switched direction to: " .. direction)
             
-            -- 【重要】returnせず、そのフレーム内で即座に逆方向へ再計算して動き続ける
-            theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt * 3) % (math.pi * 2)
+            -- そのフレーム内で即座に逆方向へ再計算
+            theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt * 3) % (math.pi * 2)
             nextPos = Vector3.new(
                 targetPos.X + math.cos(theta) * desiredDistance,
                 myPos.Y,
                 targetPos.Z + math.sin(theta) * desiredDistance
             )
-            moveDirection = (nextPos - myPos).Unit
         end
 
-        -- 実際にキャラクターを移動・回転させる
-        humanoid:Move(moveDirection, false)
-        myRoot.CFrame = CFrame.lookAt(myPos, Vector3.new(targetPos.X, myPos.Y, targetPos.Z))
+        -- 【確実な移動方式】
+        -- 位置（nextPos）と、ターゲットの方向を向く角度をCFrameへ直接同時に代入してスライド移動させる
+        myRoot.CFrame = CFrame.lookAt(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
         
+        -- アニメーションや物理的なジャンプを機能させる
         if TargetStrafe.Settings.AutoJump and humanoid.FloorMaterial ~= Enum.Material.Air then
             humanoid.Jump = true
         end
     else
-        -- ターゲットを見失った（いなくなった）場合
         if lastTargetName ~= nil then
             print("[TargetStrafe Debug] Lost target.")
             lastTargetName = nil
-        end
-
-        if humanoid.MoveDirection ~= Vector3.zero then
-            humanoid:Move(Vector3.zero, false)
         end
     end
 end
@@ -203,12 +202,6 @@ function TargetStrafe.Callback(enabled)
             connection:Disconnect() 
             connection = nil 
             print("[TargetStrafe Debug] Heartbeat event disconnected.")
-        end
-        if lplr.Character then
-            local humanoid = lplr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then 
-                humanoid:Move(Vector3.zero, false) 
-            end
         end
     end
 end
