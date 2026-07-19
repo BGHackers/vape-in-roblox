@@ -30,6 +30,10 @@ TargetStrafe.Settings = {
 local connection, currentTarget = nil, nil
 local theta, direction, lastDirectionSwitchTime = 0, 1, 0
 
+-- デバッグ用の変数
+local lastTargetName = nil
+local lastHeartbeatCheck = 0
+
 -- ========================================================
 -- 【ヘルパー関数群】
 -- ========================================================
@@ -47,11 +51,13 @@ local function checkObstacles(myPos, dir, char)
     return isVoid or isWall
 end
 
--- ターゲット取得（元の仕様に差し戻し）
+-- ターゲット取得
 local function findClosestTarget(rangeLimit)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter.PrimaryPart
-    if not myRoot then return nil end
+    if not myRoot then 
+        return nil 
+    end
 
     local closestTarget, minDistance = nil, rangeLimit
     for _, player in ipairs(Players:GetPlayers()) do
@@ -68,6 +74,7 @@ end
 
 -- UI設定の構築
 function TargetStrafe.Init(moduleObj)
+    print("[TargetStrafe Debug] Init called (UI creation)")
     UI = UI or {}
 
     UI.Distance = moduleObj:CreateSlider({
@@ -102,6 +109,16 @@ local function onHeartbeat(dt)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
     local humanoid = myCharacter and myCharacter:FindFirstChildOfClass("Humanoid")
+    
+    -- 5秒おきに動作中であることをログに表示（動作の生死確認用）
+    if os.clock() - lastHeartbeatCheck > 5 then
+        lastHeartbeatCheck = os.clock()
+        local charExists = myCharacter ~= nil
+        local rootExists = myRoot ~= nil
+        local humState = humanoid and humanoid:GetState().Name or "None"
+        print(string.format("[TargetStrafe Debug] Heartbeat active. Character: %s, Root: %s, State: %s", tostring(charExists), tostring(rootExists), humState))
+    end
+
     if not myRoot or not humanoid or humanoid:GetState() == Enum.HumanoidStateType.Dead then
         return
     end
@@ -111,6 +128,13 @@ local function onHeartbeat(dt)
     if currentTarget and currentTarget.PrimaryPart then
         local targetRoot = currentTarget.PrimaryPart
         local myPos, targetPos = myRoot.Position, targetRoot.Position
+        local targetName = currentTarget.Name
+
+        -- ターゲットが切り替わった場合、または初めてターゲットを検知した場合にログを表示
+        if lastTargetName ~= targetName then
+            print("[TargetStrafe Debug] Target Changed: " .. targetName .. " | Distance: " .. math.round((myPos - targetPos).Magnitude) .. " studs")
+            lastTargetName = targetName
+        end
 
         -- 旋回と移動方向の計算
         theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt) % (math.pi * 2)
@@ -126,6 +150,7 @@ local function onHeartbeat(dt)
         if checkObstacles(myPos, moveDirection, myCharacter) and (os.clock() - lastDirectionSwitchTime > 0.5) then
             direction = -direction 
             lastDirectionSwitchTime = os.clock()
+            print("[TargetStrafe Debug] Obstacle or Void detected. Switched direction to: " .. direction)
             theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt * 3) % (math.pi * 2) 
             return 
         end
@@ -137,6 +162,12 @@ local function onHeartbeat(dt)
             humanoid.Jump = true
         end
     else
+        -- ターゲットを見失った（いなくなった）場合
+        if lastTargetName ~= nil then
+            print("[TargetStrafe Debug] Lost target.")
+            lastTargetName = nil
+        end
+
         if humanoid.MoveDirection ~= Vector3.zero then
             humanoid:Move(Vector3.zero, false)
         end
@@ -145,14 +176,22 @@ end
 
 -- モジュールの有効化/無効化
 function TargetStrafe.Callback(enabled)
+    print("[TargetStrafe Debug] Callback toggled. Enabled state: " .. tostring(enabled))
     if enabled then
-        theta, direction, lastDirectionSwitchTime, currentTarget = 0, 1, 0, nil
+        theta, direction, lastDirectionSwitchTime, currentTarget, lastTargetName = 0, 1, 0, nil, nil
         connection = RunService.Heartbeat:Connect(onHeartbeat)
+        print("[TargetStrafe Debug] Heartbeat event connected.")
     else
-        if connection then connection:Disconnect() connection = nil end
+        if connection then 
+            connection:Disconnect() 
+            connection = nil 
+            print("[TargetStrafe Debug] Heartbeat event disconnected.")
+        end
         if lplr.Character then
             local humanoid = lplr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then humanoid:Move(Vector3.zero, false) end
+            if humanoid then 
+                humanoid:Move(Vector3.zero, false) 
+            end
         end
     end
 end
