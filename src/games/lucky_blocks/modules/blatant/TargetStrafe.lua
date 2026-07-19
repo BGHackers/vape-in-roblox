@@ -33,7 +33,7 @@ local theta, direction, lastDirectionSwitchTime = 0, 1, 0
 -- デバッグ・すり抜け防止用の変数
 local lastTargetName = nil
 local lastHeartbeatCheck = 0
-local lastSafeCFrame = nil -- LoadingBlockerの外側にいた直前の安全な座標を保存する変数
+local lastSafeCFrame = nil -- 安全な座標を保存する変数
 
 -- ========================================================
 -- 【ヘルパー関数群】
@@ -49,27 +49,45 @@ local function isInsidePart(part, pos)
        and math.abs(localPos.Z) < size.Z / 2
 end
 
--- 壁と奈落を検知する
+-- 先回りで壁と奈落を検知する（改善：検知範囲の多角化）
 local function checkObstacles(myPos, dir, char)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.FilterDescendantsInstances = {char}
     
-    local rayDown = workspace:Raycast(myPos + dir * 2.5, Vector3.new(0, -100, 0), params)
+    -- 1. 奈落の先回り検知（進行方向の少し先から斜め下へキャスト）
+    local checkDist = 3
+    local nextFloorPos = myPos + dir * checkDist
+    local rayDown = workspace:Raycast(nextFloorPos, Vector3.new(0, -15, 0), params)
     local isVoid = not rayDown
     
-    local wall = workspace:Raycast(myPos, dir * 2, params)
-    local isWall = wall and wall.Instance and wall.Instance.CanCollide
+    -- 2. 壁の先回り検知（正面に加え、左右30度の斜め前方へキャストして壁への擦り付けを回避）
+    local isWall = false
+    local wallName = ""
+    local directionsToCheck = {
+        dir * 2.5,
+        (CFrame.Angles(0, math.rad(30), 0) * dir) * 2,
+        (CFrame.Angles(0, math.rad(-30), 0) * dir) * 2
+    }
+    
+    for _, d in ipairs(directionsToCheck) do
+        local wall = workspace:Raycast(myPos, d, params)
+        if wall and wall.Instance and wall.Instance.CanCollide then
+            isWall = true
+            wallName = wall.Instance.Name
+            break
+        end
+    end
     
     if isVoid then
         return true, "Void"
     elseif isWall then
-        return true, "Wall (" .. wall.Instance.Name .. ")"
+        return true, "Wall (" .. wallName .. ")"
     end
     return false, nil
 end
 
--- ターゲット取得
+-- ターゲット取得（改善：生存確認および無敵判定の追加）
 local function findClosestTarget(rangeLimit)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter.PrimaryPart
@@ -80,10 +98,15 @@ local function findClosestTarget(rangeLimit)
     local closestTarget, minDistance = nil, rangeLimit
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= lplr and player.Character and player.Character.PrimaryPart then
-            local distance = (myRoot.Position - player.Character.PrimaryPart.Position).Magnitude
-            if distance < minDistance then
-                minDistance = distance
-                closestTarget = player.Character
+            local char = player.Character
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            -- 生存しており、初期スポーンなどの無敵状態（ForceField）ではないプレイヤーのみを狙う
+            if hum and hum.Health > 0 and not char:FindFirstChildOfClass("ForceField") then
+                local distance = (myRoot.Position - char.PrimaryPart.Position).Magnitude
+                if distance < minDistance then
+                    minDistance = distance
+                    closestTarget = char
+                end
             end
         end
     end
@@ -148,12 +171,10 @@ local function onHeartbeat(dt)
     if loadingBlocker and loadingBlocker:IsA("BasePart") then
         if isInsidePart(loadingBlocker, myRoot.Position) then
             if lastSafeCFrame then
-                -- すり抜けて範囲内に入ってしまった場合、直前の安全な座標へ即座に引き戻す
                 myRoot.CFrame = lastSafeCFrame
                 print("[TargetStrafe Debug] LoadingBlocker bypass blocked! Teleported back to safety.")
-                return -- 侵入中は周回移動処理をスキップ
+                return 
             else
-                -- まだ一度も安全な場所が記録されておらず、最初から内部にいた場合はPartの外側（5スタッド先）へ強制押し出し
                 local blockerCF = loadingBlocker.CFrame
                 local blockerSize = loadingBlocker.Size
                 myRoot.CFrame = blockerCF * CFrame.new(0, 0, blockerSize.Z / 2 + 5)
@@ -161,7 +182,6 @@ local function onHeartbeat(dt)
                 return
             end
         else
-            -- 範囲外の安全な場所に立っているため、現在の座標を「安全地帯」として上書き保存
             lastSafeCFrame = myRoot.CFrame
         end
     end
@@ -174,23 +194,22 @@ local function onHeartbeat(dt)
         local myPos, targetPos = myRoot.Position, targetRoot.Position
         local targetName = currentTarget.Name
 
-        -- ターゲットが新規検知・または切り替わった場合
+        -- ターゲット変更時の処理
         if lastTargetName ~= targetName then
             print("[TargetStrafe Debug] Target Changed: " .. targetName .. " | Distance: " .. math.round((myPos - targetPos).Magnitude) .. " studs")
             lastTargetName = targetName
             
-            -- 現在地の角度を逆算してthetaの初期値に設定
             local relative = myPos - targetPos
             theta = math.atan2(relative.Z, relative.X)
             print("[TargetStrafe Debug] Initialized start theta to: " .. tostring(theta))
         end
 
-        -- 旋回速度を調整
+        -- 旋回角度の更新
         theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt) % (math.pi * 2)
         local desiredDistance = TargetStrafe.Settings.DistanceValue
         local nextPos = Vector3.new(
             targetPos.X + math.cos(theta) * desiredDistance,
-            myPos.Y, -- 自身のジャンプ時の高さをキープ
+            myPos.Y, -- 自身の高さを保持
             targetPos.Z + math.sin(theta) * desiredDistance
         )
         local moveDirection = (nextPos - myPos).Unit
@@ -202,19 +221,28 @@ local function onHeartbeat(dt)
             lastDirectionSwitchTime = os.clock()
             print("[TargetStrafe Debug] " .. obstacleType .. " detected! Switched direction to: " .. direction)
             
-            -- そのフレーム内で即座に逆方向へ再計算
             theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt * 3) % (math.pi * 2)
             nextPos = Vector3.new(
                 targetPos.X + math.cos(theta) * desiredDistance,
                 myPos.Y,
                 targetPos.Z + math.sin(theta) * desiredDistance
             )
+            moveDirection = (nextPos - myPos).Unit
         end
 
-        -- 位置（nextPos）と、ターゲットの方向を向く角度をCFrameへ直接同時に代入してスライド移動させる
+        -- ========================================================
+        -- 【改善：アセンブリ速度（物理）の同期】
+        -- ========================================================
+        -- 直接のCFrame書き換えのみではサーバーとの同期ズレが起きやすいため、
+        -- 物理エンジン上のアセンブリ速度（AssemblyLinearVelocity）を移動速度に合わせて設定します。
+        local targetVelocity = moveDirection * TargetStrafe.Settings.SpeedValue
+        myRoot.AssemblyLinearVelocity = Vector3.new(targetVelocity.X, myRoot.AssemblyLinearVelocity.Y, targetVelocity.Z)
+
+        -- 位置の移動と向きの回転を同時に適用
         myRoot.CFrame = CFrame.lookAt(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
+        -- ========================================================
         
-        -- アニメーションや物理的なジャンプを機能させる
+        -- 自動ジャンプ処理
         if TargetStrafe.Settings.AutoJump and humanoid.FloorMaterial ~= Enum.Material.Air then
             humanoid.Jump = true
         end
@@ -222,6 +250,8 @@ local function onHeartbeat(dt)
         if lastTargetName ~= nil then
             print("[TargetStrafe Debug] Lost target.")
             lastTargetName = nil
+            -- ターゲットを見失った際は速度ベクトルを減衰させ、ピタッと止まるようにします
+            myRoot.AssemblyLinearVelocity = Vector3.new(0, myRoot.AssemblyLinearVelocity.Y, 0)
         end
     end
 end
