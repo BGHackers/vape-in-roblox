@@ -30,13 +30,24 @@ TargetStrafe.Settings = {
 local connection, currentTarget = nil, nil
 local theta, direction, lastDirectionSwitchTime = 0, 1, 0
 
--- デバッグ用の変数
+-- デバッグ・すり抜け防止用の変数
 local lastTargetName = nil
 local lastHeartbeatCheck = 0
+local lastSafeCFrame = nil -- LoadingBlockerの外側にいた直前の安全な座標を保存する変数
 
 -- ========================================================
 -- 【ヘルパー関数群】
 -- ========================================================
+
+-- Partの内部（バウンディングボックス内）に座標があるかを正確に判定する（傾き対応）
+local function isInsidePart(part, pos)
+    if not part then return false end
+    local localPos = part.CFrame:PointToObjectSpace(pos)
+    local size = part.Size
+    return math.abs(localPos.X) < size.X / 2
+       and math.abs(localPos.Y) < size.Y / 2
+       and math.abs(localPos.Z) < size.Z / 2
+end
 
 -- 壁と奈落を検知する
 local function checkObstacles(myPos, dir, char)
@@ -130,6 +141,32 @@ local function onHeartbeat(dt)
         return
     end
 
+    -- ========================================================
+    -- 【LoadingBlocker すり抜け・侵入検知システム】
+    -- ========================================================
+    local loadingBlocker = workspace:FindFirstChild("Misc") and workspace.Misc:FindFirstChild("LoadingBlocker")
+    if loadingBlocker and loadingBlocker:IsA("BasePart") then
+        if isInsidePart(loadingBlocker, myRoot.Position) then
+            if lastSafeCFrame then
+                -- すり抜けて範囲内に入ってしまった場合、直前の安全な座標へ即座に引き戻す
+                myRoot.CFrame = lastSafeCFrame
+                print("[TargetStrafe Debug] LoadingBlocker bypass blocked! Teleported back to safety.")
+                return -- 侵入中は周回移動処理をスキップ
+            else
+                -- まだ一度も安全な場所が記録されておらず、最初から内部にいた場合はPartの外側（5スタッド先）へ強制押し出し
+                local blockerCF = loadingBlocker.CFrame
+                local blockerSize = loadingBlocker.Size
+                myRoot.CFrame = blockerCF * CFrame.new(0, 0, blockerSize.Z / 2 + 5)
+                print("[TargetStrafe Debug] Initial LoadingBlocker bypass blocked! Forced player out.")
+                return
+            end
+        else
+            -- 範囲外の安全な場所に立っているため、現在の座標を「安全地帯」として上書き保存
+            lastSafeCFrame = myRoot.CFrame
+        end
+    end
+    -- ========================================================
+
     currentTarget = findClosestTarget(TargetStrafe.Settings.SearchRangeValue)
     
     if currentTarget and currentTarget.PrimaryPart then
@@ -174,7 +211,6 @@ local function onHeartbeat(dt)
             )
         end
 
-        -- 【確実な移動方式】
         -- 位置（nextPos）と、ターゲットの方向を向く角度をCFrameへ直接同時に代入してスライド移動させる
         myRoot.CFrame = CFrame.lookAt(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
         
@@ -194,7 +230,7 @@ end
 function TargetStrafe.Callback(enabled)
     print("[TargetStrafe Debug] Callback toggled. Enabled state: " .. tostring(enabled))
     if enabled then
-        theta, direction, lastDirectionSwitchTime, currentTarget, lastTargetName = 0, 1, 0, nil, nil
+        theta, direction, lastDirectionSwitchTime, currentTarget, lastTargetName, lastSafeCFrame = 0, 1, 0, nil, nil, nil
         connection = RunService.Heartbeat:Connect(onHeartbeat)
         print("[TargetStrafe Debug] Heartbeat event connected.")
     else
