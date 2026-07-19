@@ -18,7 +18,7 @@ local TargetStrafe = {
     TargetGame = "lucky_blocks"
 }
 
--- デフォルト設定（コア機能のみ）
+-- デフォルト設定
 TargetStrafe.Settings = {
     DistanceValue = 6,
     SpeedValue = 12,
@@ -47,7 +47,7 @@ local function checkObstacles(myPos, dir, char)
     return isVoid or isWall
 end
 
--- ターゲット取得
+-- ターゲット取得（元の仕様に差し戻し）
 local function findClosestTarget(rangeLimit)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter.PrimaryPart
@@ -56,14 +56,10 @@ local function findClosestTarget(rangeLimit)
     local closestTarget, minDistance = nil, rangeLimit
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= lplr and player.Character and player.Character.PrimaryPart then
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            -- 生存しているプレイヤーのみをターゲットにする
-            if humanoid and humanoid.Health > 0 then
-                local distance = (myRoot.Position - player.Character.PrimaryPart.Position).Magnitude
-                if distance < minDistance then
-                    minDistance = distance
-                    closestTarget = player.Character
-                end
+            local distance = (myRoot.Position - player.Character.PrimaryPart.Position).Magnitude
+            if distance < minDistance then
+                minDistance = distance
+                closestTarget = player.Character
             end
         end
     end
@@ -141,7 +137,6 @@ local function onHeartbeat(dt)
             humanoid.Jump = true
         end
     else
-        -- ターゲットがいない場合は移動を停止
         if humanoid.MoveDirection ~= Vector3.zero then
             humanoid:Move(Vector3.zero, false)
         end
