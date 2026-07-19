@@ -38,17 +38,25 @@ local lastHeartbeatCheck = 0
 -- 【ヘルパー関数群】
 -- ========================================================
 
--- 壁と奈落を検知する
+-- 壁と奈落を検知する（デバッグ情報付き）
 local function checkObstacles(myPos, dir, char)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.FilterDescendantsInstances = {char}
     
-    local isVoid = not workspace:Raycast(myPos + dir * 2, Vector3.new(0, -50, 0), params)
+    -- 下方向への判定を深く（-100 studs）して、ジャンプ中（Freefall）でも床を検知しやすくする
+    local rayDown = workspace:Raycast(myPos + dir * 2.5, Vector3.new(0, -100, 0), params)
+    local isVoid = not rayDown
+    
     local wall = workspace:Raycast(myPos, dir * 2, params)
     local isWall = wall and wall.Instance and wall.Instance.CanCollide
     
-    return isVoid or isWall
+    if isVoid then
+        return true, "Void"
+    elseif isWall then
+        return true, "Wall (" .. wall.Instance.Name .. ")"
+    end
+    return false, nil
 end
 
 -- ターゲット取得
@@ -110,7 +118,7 @@ local function onHeartbeat(dt)
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
     local humanoid = myCharacter and myCharacter:FindFirstChildOfClass("Humanoid")
     
-    -- 5秒おきに動作中であることをログに表示（動作の生死確認用）
+    -- 5秒おきに動作中であることをログに表示（動作の生存確認）
     if os.clock() - lastHeartbeatCheck > 5 then
         lastHeartbeatCheck = os.clock()
         local charExists = myCharacter ~= nil
@@ -130,13 +138,13 @@ local function onHeartbeat(dt)
         local myPos, targetPos = myRoot.Position, targetRoot.Position
         local targetName = currentTarget.Name
 
-        -- ターゲットが切り替わった場合、または初めてターゲットを検知した場合にログを表示
+        -- ターゲットの切り替わり
         if lastTargetName ~= targetName then
             print("[TargetStrafe Debug] Target Changed: " .. targetName .. " | Distance: " .. math.round((myPos - targetPos).Magnitude) .. " studs")
             lastTargetName = targetName
         end
 
-        -- 旋回と移動方向の計算
+        -- 旋回と移動方向の初期計算
         theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt) % (math.pi * 2)
         local desiredDistance = TargetStrafe.Settings.DistanceValue
         local nextPos = Vector3.new(
@@ -147,14 +155,23 @@ local function onHeartbeat(dt)
         local moveDirection = (nextPos - myPos).Unit
 
         -- 壁・奈落を検知して反転
-        if checkObstacles(myPos, moveDirection, myCharacter) and (os.clock() - lastDirectionSwitchTime > 0.5) then
+        local hasObstacle, obstacleType = checkObstacles(myPos, moveDirection, myCharacter)
+        if hasObstacle and (os.clock() - lastDirectionSwitchTime > 0.5) then
             direction = -direction 
             lastDirectionSwitchTime = os.clock()
-            print("[TargetStrafe Debug] Obstacle or Void detected. Switched direction to: " .. direction)
-            theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt * 3) % (math.pi * 2) 
-            return 
+            print("[TargetStrafe Debug] " .. obstacleType .. " detected! Switched direction to: " .. direction)
+            
+            -- 【重要】returnせず、そのフレーム内で即座に逆方向へ再計算して動き続ける
+            theta = (theta + direction * TargetStrafe.Settings.SpeedValue * dt * 3) % (math.pi * 2)
+            nextPos = Vector3.new(
+                targetPos.X + math.cos(theta) * desiredDistance,
+                myPos.Y,
+                targetPos.Z + math.sin(theta) * desiredDistance
+            )
+            moveDirection = (nextPos - myPos).Unit
         end
 
+        -- 実際にキャラクターを移動・回転させる
         humanoid:Move(moveDirection, false)
         myRoot.CFrame = CFrame.lookAt(myPos, Vector3.new(targetPos.X, myPos.Y, targetPos.Z))
         
