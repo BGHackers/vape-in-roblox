@@ -1,6 +1,6 @@
 <# :
 @echo off
-title Lua/Txt Auto Comment Remover
+title Lua/Txt Overwrite Comment Remover
 
 set "BAT_DIR=%~dp0"
 set "TARGET_FILE=%~1"
@@ -32,9 +32,6 @@ if ($target) {
     $filesToProcess = Get-ChildItem -Path $batDir -File | Where-Object { $_.Extension -match '^\.(lua|txt)$' }
 }
 
-# すでに変換済みのファイル（_no_comments）は除外する
-$filesToProcess = $filesToProcess | Where-Object { $_.Name -notlike "*_no_comments*" }
-
 # 対象ファイルが見つからなかった場合の処理
 if ($filesToProcess.Count -eq 0) {
     Write-Host "対象となる .lua または .txt ファイルが見つかりませんでした。" -ForegroundColor Red
@@ -42,10 +39,10 @@ if ($filesToProcess.Count -eq 0) {
     exit
 }
 
-Write-Host ("{0} 個の対象ファイルが見つかりました。一括処理を開始します..." -f $filesToProcess.Count) -ForegroundColor Cyan
+Write-Host ("{0} 個の対象ファイルが見つかりました。直接上書きを開始します..." -f $filesToProcess.Count) -ForegroundColor Cyan
 Write-Host "--------------------------------------------------"
 
-# 2. 集めたファイルを順次クリーンアップ
+# 2. 集めたファイルを順次上書きクリーンアップ
 foreach ($file in $filesToProcess) {
     $filePath = $file.FullName
     $content = Get-Content -LiteralPath $filePath -Raw
@@ -64,17 +61,11 @@ foreach ($file in $filesToProcess) {
     $cleaned = $cleaned -replace '(?m)[ \t]+$', '' # 行末スペース削除
     $cleaned = $cleaned -replace '(?m)^\s*\r?\n', '' # 不要な空行の圧縮
 
-    # 保存先ファイルの決定
-    $directory = $file.DirectoryName
-    $filename = $file.BaseName
-    $extension = $file.Extension
-    $outputPath = Join-Path $directory "$filename`_no_comments$extension"
-
-    # 保存
-    [System.IO.File]::WriteAllText($outputPath, $cleaned, [System.Text.Encoding]::UTF8)
-    Write-Host "【完了】 $($file.Name) -> $([System.IO.Path]::GetFileName($outputPath))" -ForegroundColor Green
+    # 元のファイル名（同じファイルパス）へ直接上書き保存
+    [System.IO.File]::WriteAllText($filePath, $cleaned, [System.Text.Encoding]::UTF8)
+    Write-Host "【上書き完了】 $($file.Name)" -ForegroundColor Green
 }
 
 Write-Host "--------------------------------------------------"
-Write-Host "すべてのファイルの処理が完了しました！" -ForegroundColor Green
+Write-Host "すべてのファイルを元の名前で直接上書きしました！" -ForegroundColor Green
 Start-Sleep -Seconds 3
