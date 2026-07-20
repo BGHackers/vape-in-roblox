@@ -55,7 +55,7 @@ npm install
 ```
 
 ## 3. Run the Auto-Sync Watcher
-Start the file watcher. It will monitor your ./src folder and automatically run git push if no modifications are detected for 5 seconds after your last save.
+Start the file watcher. It will monitor your ./src folder and automatically run git push if no modifications are detected for 1 seconds after your last save.
 
 ```bash
 npm run watch-push
@@ -125,7 +125,7 @@ npm install
 ```
 
 ## 2. 自動同期の起動
-ファイル変更を検知して自動的にGitHubへプッシュする監視スクリプトを起動します（保存してから5秒間次の変更がなければ、自動的に git push が実行されます）。
+ファイル変更を検知して自動的にGitHubへプッシュする監視スクリプトを起動します（保存してから1秒間次の変更がなければ、自動的に git push が実行されます）。
 ```bash
 npm run watch-push
 ```
