@@ -1,10 +1,7 @@
--- src/features/modules/impl/blatant/HitBoxes.lua
-
-local HitBoxes = {
+﻿local HitBoxes = {
     Name = "HitBoxes",
     Description = "Expand player hitboxes."
 }
-
 function HitBoxes.Callback(enabled)
     if enabled then
         print("HitBoxes Enabled")
@@ -12,5 +9,4 @@ function HitBoxes.Callback(enabled)
         print("HitBoxes Disabled")
     end
 end
-
 return HitBoxes

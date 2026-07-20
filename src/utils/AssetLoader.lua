@@ -1,6 +1,4 @@
--- src/utils/AssetLoader.lua
-
-local Players = game:GetService("Players")
+﻿local Players = game:GetService("Players")
 local isfolder = isfolder or function(path)
     local success, _ = pcall(listfiles, path)
     return success
@@ -56,16 +54,10 @@ local function loadOnlineImage(url, localName)
     end
     return nil
 end
-
 local assets = {}
-
--- 🌟 進捗をローディング画面に伝えるための BindableEvent を定義
 local progressEvent = Instance.new("BindableEvent")
 assets.OnProgress = progressEvent.Event
-
--- ダウンロード対象のURLとファイル名、および表示用のラベル
 local downloadList = {
-    -- 保存するファイル名「ape_logo_main.png」と、進捗ラベル「Ape Main Logo」
     {key = "vapeLogo", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/aa.png", file = "ape_logo_main.png", label = "Ape Main Logo"},
     {key = "v4Logo", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/textv4.png", file = "vape_v4_badge.png", label = "V4 Badge"},
     {key = "guiSettings", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/guisettings.png", file = "vape_gui_settings.png", label = "Settings Gear"},
@@ -84,33 +76,18 @@ local downloadList = {
     {key = "guisliderrain", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/guisliderrain.png", file = "vape_guisliderrain.png", label = "Rainbow Slider"},
     {key = "warning", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/warning.png", file = "warning.png", label = "Warning Icon"},
     {key = "blurnotif", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/blurnotif.png", file = "blurnotif.png", label = "Notification Blur"},
-    -- 🌟 【追加】新規通知関連アセット 3点
     {key = "alert", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/alert.png", file = "alert.png", label = "Alert Icon"},
     {key = "info", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/info.png", file = "info.png", label = "Info Icon"},
     {key = "notification", url = "https://raw.githubusercontent.com/BGHackers/vape-rewrhite/main/notification.png", file = "notification.png", label = "Notification Background"}
 }
-
--- 🌟 この関数を呼び出すことで、実際のアセット読み込み（ダウンロード）を開始します
--- 🌟 アセットのロード処理（遅延時間を調整）
 function assets.loadAll()
     local total = #downloadList
     for i, item in ipairs(downloadList) do
-        -- 進捗イベントを発火
         progressEvent:Fire(i / total, "Loading " .. item.label .. "...")
-        
-        -- アセットをダウンロード＆登録
         assets[item.key] = loadOnlineImage(item.url, folderName .. "/assets/" .. item.file)
-        
-        -- 🌟 演出を綺麗に見せるため、あえて 0.08 秒の遅延を追加
-        -- これにより、ゲージがカクつかずスムーズになめらかに伸びていきます
         task.wait(0.08) 
     end
-    
-    -- 固定アセットの追加
     assets.arrow = "rbxassetid://10709791437"
-    
-    -- ロード完了を通知
     progressEvent:Fire(1.0, "Assets successfully loaded!")
 end
-
 return assets

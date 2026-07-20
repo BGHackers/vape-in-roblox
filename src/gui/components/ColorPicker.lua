@@ -1,19 +1,14 @@
--- src/gui/components/ColorPicker.lua
-local TweenService = game:GetService("TweenService")
+﻿local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local TextService = game:GetService("TextService")
-
 local ColorPicker = {}
 ColorPicker.__index = ColorPicker
-
--- パレット
 local default_uipallet = {
     Main  = Color3.fromRGB(26, 25, 26),
     Text  = Color3.fromRGB(200, 200, 200),
     Font  = Enum.Font.SourceSans,
     Tween = TweenInfo.new(0.16, Enum.EasingStyle.Linear)
 }
-
 local function getTableSize(t)
     local count = 0
     if typeof(t) == "table" then
@@ -21,17 +16,14 @@ local function getTableSize(t)
     end
     return count
 end
-
 local function colorDark(col, num)
     local h, s, v = col:ToHSV()
     return Color3.fromHSV(h, s, math.clamp(v - num, 0, 1))
 end
-
 local function colorLight(col, num)
     local h, s, v = col:ToHSV()
     return Color3.fromHSV(h, s, math.clamp(v + num, 0, 1))
 end
-
 local function applyFont(instance, font)
     if typeof(font) == "Font" then
         instance.FontFace = font
@@ -41,11 +33,8 @@ local function applyFont(instance, font)
         pcall(function() instance.FontFace = font end)
     end
 end
-
--- 【コンストラクタ】
 function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets, api)
     local self = setmetatable({}, ColorPicker)
-
     local name = nameOrSettings
     local optionsettings = {}
     if type(nameOrSettings) == "table" then
@@ -53,7 +42,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         name = optionsettings.Name
         callback = optionsettings.Function
     end
-
     local active_mainapi = mainapi or (shared.vape and shared.vape.mainapi)
     self.api = api or active_mainapi or shared.vape or (shared.VapeMenu)
     self.mainapi = active_mainapi
@@ -61,20 +49,15 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     self.uipallet = active_uipallet
     local active_color = (color and color.Light and color.Dark) and color or { Light = colorLight, Dark = colorDark }
     local active_tween = (tween and tween.Tween) and tween or nil
-
     self.Name = name
     self.Type = "ColorSlider"
     self.Index = (self.api and self.api.Options) and getTableSize(self.api.Options) or 0
     self.Callback = callback or function() end
-
-    -- 値の初期化 (HSV + 不透明度)
     self.Hue = optionsettings.DefaultHue or (type(defaultValue) == "table" and defaultValue.Hue) or 0.44
     self.Sat = optionsettings.DefaultSat or (type(defaultValue) == "table" and defaultValue.Sat) or 1
     self.Value = optionsettings.DefaultValue or (type(defaultValue) == "table" and defaultValue.Value) or 1
     self.Opacity = optionsettings.DefaultOpacity or (type(defaultValue) == "table" and defaultValue.Opacity) or 1
     self.Rainbow = false
-
-    -- ── サブスライダー (Saturation / Vibrance / Opacity) の生成用ヘルパー ──
     local function createSubSlider(sliderName, gradientColor)
         local sub = Instance.new("TextButton")
         sub.Name = name .. "Slider" .. sliderName
@@ -86,7 +69,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         sub.Visible = false
         sub.Text = ""
         sub.Parent = parent
-
         local subTitle = Instance.new("TextLabel")
         subTitle.Name = "Title"
         subTitle.Size = UDim2.fromOffset(100, 30)
@@ -98,7 +80,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         subTitle.TextSize = 13 
         applyFont(subTitle, active_uipallet.Font)
         subTitle.Parent = sub
-
         local subBkg = Instance.new("Frame")
         subBkg.Name = "Slider"
         subBkg.Size = UDim2.new(1, -24, 0, 2) 
@@ -106,11 +87,9 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         subBkg.BackgroundColor3 = Color3.new(1, 1, 1)
         subBkg.BorderSizePixel = 0
         subBkg.Parent = sub
-
         local subGrad = Instance.new("UIGradient")
         subGrad.Color = gradientColor
         subGrad.Parent = subBkg
-
         local subFill = Instance.new("Frame")
         subFill.Name = "Fill"
         local initialVal = (sliderName == "Saturation" and self.Sat) or (sliderName == "Vibrance" and self.Value) or self.Opacity
@@ -118,7 +97,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         subFill.Position = UDim2.new()
         subFill.BackgroundTransparency = 1
         subFill.Parent = subBkg
-
         local knobHolder = Instance.new("Frame")
         knobHolder.Name = "Knob"
         knobHolder.Size = UDim2.fromOffset(24, 4)
@@ -127,7 +105,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         knobHolder.BackgroundColor3 = sub.BackgroundColor3
         knobHolder.BorderSizePixel = 0
         knobHolder.Parent = subFill
-
         local subKnob = Instance.new("Frame")
         subKnob.Name = "KnobCircle"
         subKnob.Size = UDim2.fromOffset(14, 14)
@@ -135,15 +112,11 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         subKnob.AnchorPoint = Vector2.new(0.5, 0.5)
         subKnob.BackgroundColor3 = active_uipallet.Text
         subKnob.Parent = knobHolder
-
         local knobCorner = Instance.new("UICorner")
         knobCorner.CornerRadius = UDim.new(1, 0)
         knobCorner.Parent = subKnob
-
-        -- 入力ドラッグ処理
         local subDragging = false
         local dragConn = nil
-
         local function updateSubDrag(input)
             local ratio = math.clamp((input.Position.X - subBkg.AbsolutePosition.X) / subBkg.AbsoluteSize.X, 0, 1)
             if sliderName == "Saturation" then
@@ -154,13 +127,11 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
                 self:SetValue(nil, nil, nil, ratio)
             end
         end
-
         sub.InputBegan:Connect(function(input)
             if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
                 subDragging = true
                 if dragConn then dragConn:Disconnect() end
                 updateSubDrag(input)
-
                 dragConn = UserInputService.InputChanged:Connect(function(changedInput)
                     if subDragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                         updateSubDrag(changedInput)
@@ -168,7 +139,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
                 end)
             end
         end)
-
         UserInputService.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 if subDragging then
@@ -180,7 +150,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
                 end
             end
         end)
-
         sub.MouseEnter:Connect(function()
             TweenService:Create(subKnob, active_uipallet.Tween, {Size = UDim2.fromOffset(16, 16)}):Play()
         end)
@@ -189,11 +158,8 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
                 TweenService:Create(subKnob, active_uipallet.Tween, {Size = UDim2.fromOffset(14, 14)}):Play()
             end
         end)
-
         return sub
     end
-
-    -- ── メインスライダー (Hue) ──
     local slider = Instance.new("TextButton")
     slider.Name = name .. "Slider"
     slider.Size = UDim2.new(1, 0, 0, 50)
@@ -204,12 +170,9 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     slider.Visible = optionsettings.Visible == nil or optionsettings.Visible
     slider.Text = ""
     slider.Parent = parent
-
     if addTooltip and optionsettings.Tooltip then
         addTooltip(slider, optionsettings.Tooltip)
     end
-
-    -- タイトル
     local title = Instance.new("TextLabel")
     title.Name = "Title"
     title.Size = UDim2.fromOffset(150, 30)
@@ -221,8 +184,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     title.TextSize = 17 
     applyFont(title, active_uipallet.Font)
     title.Parent = slider
-
-    -- RGB・Hex入力用のvaluebox (隠し直接入力枠)
     local valuebox = Instance.new("TextBox")
     valuebox.Name = "Box"
     valuebox.Size = UDim2.fromOffset(90, 20)
@@ -236,8 +197,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     applyFont(valuebox, active_uipallet.Font)
     valuebox.ClearTextOnFocus = true
     valuebox.Parent = slider
-
-    -- 虹色グラデーション用のトラック
     local bkg = Instance.new("Frame")
     bkg.Name = "Slider"
     bkg.Size = UDim2.new(1, -24, 0, 2)
@@ -245,24 +204,19 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     bkg.BackgroundColor3 = Color3.new(1, 1, 1)
     bkg.BorderSizePixel = 0
     bkg.Parent = slider
-
     local rainbowTable = {}
     for i = 0, 1, 0.1 do
         table.insert(rainbowTable, ColorSequenceKeypoint.new(i, Color3.fromHSV(i, 1, 1)))
     end
-
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new(rainbowTable)
     gradient.Parent = bkg
-
     local fill = bkg:Clone()
     fill.Name = "Fill"
     fill.Size = UDim2.fromScale(math.clamp(self.Hue, 0.01, 0.99), 1)
     fill.Position = UDim2.new()
     fill.BackgroundTransparency = 1
     fill.Parent = bkg
-
-    -- Color Preview
     local preview = Instance.new("TextButton")
     preview.Name = "Preview"
     preview.Size = UDim2.fromOffset(14, 14)
@@ -272,28 +226,22 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     preview.BorderSizePixel = 0
     preview.Text = ""
     preview.Parent = slider
-
     local previewCorner = Instance.new("UICorner")
     previewCorner.CornerRadius = UDim.new(1, 0)
     previewCorner.Parent = preview
-
     local previewStroke = Instance.new("UIStroke")
     previewStroke.Thickness = 1
     previewStroke.Color = Color3.fromRGB(80, 80, 80)
     previewStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     previewStroke.Parent = preview
-
-    -- アコーディオン展開ボタン
     local expandbutton = Instance.new("TextButton")
     expandbutton.Name = "Expand"
     expandbutton.Size = UDim2.fromOffset(17, 13)
-    
     local textWidth = TextService:GetTextSize(title.Text, title.TextSize, title.Font, Vector2.new(1000, 1000)).X
     expandbutton.Position = UDim2.new(0, textWidth + 15, 0, 7)
     expandbutton.BackgroundTransparency = 1
     expandbutton.Text = ""
     expandbutton.Parent = slider
-
     local expand = Instance.new("ImageLabel")
     expand.Name = "Expand"
     expand.Size = UDim2.fromOffset(9, 5)
@@ -302,8 +250,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     expand.Image = "rbxassetid://10709790948" 
     expand.ImageColor3 = active_color.Dark(active_uipallet.Text, 0.43)
     expand.Parent = expandbutton
-
-    -- レインボー切り替えボタン
     local rainbow = Instance.new("TextButton")
     rainbow.Name = "Rainbow"
     rainbow.Size = UDim2.fromOffset(14, 14)
@@ -311,17 +257,14 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     rainbow.BackgroundTransparency = 1
     rainbow.Text = ""
     rainbow.Parent = slider
-
     local rainbowCircle = Instance.new("Frame")
     rainbowCircle.Size = UDim2.fromScale(1, 1)
     rainbowCircle.BackgroundColor3 = Color3.new(1, 1, 1)
     rainbowCircle.BorderSizePixel = 0
     rainbowCircle.Parent = rainbow
-
     local rcCorner = Instance.new("UICorner")
     rcCorner.CornerRadius = UDim.new(1, 0)
     rcCorner.Parent = rainbowCircle
-
     local rcGrad = Instance.new("UIGradient")
     rcGrad.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(225, 46, 52)),
@@ -329,14 +272,12 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         ColorSequenceKeypoint.new(1, Color3.fromRGB(228, 125, 43))
     })
     rcGrad.Parent = rainbowCircle
-
     local rainbowStroke = Instance.new("UIStroke")
     rainbowStroke.Thickness = 1.5
     rainbowStroke.Color = Color3.fromRGB(255, 255, 255)
     rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     rainbowStroke.Enabled = false
     rainbowStroke.Parent = rainbowCircle
-
     local knobholder = Instance.new("Frame")
     knobholder.Name = "Knob"
     knobholder.Size = UDim2.fromOffset(24, 4)
@@ -345,7 +286,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     knobholder.BackgroundColor3 = slider.BackgroundColor3
     knobholder.BorderSizePixel = 0
     knobholder.Parent = fill
-
     local knob = Instance.new("Frame")
     knob.Name = "Knob"
     knob.Size = UDim2.fromOffset(14, 14)
@@ -353,12 +293,9 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
     knob.BackgroundColor3 = active_uipallet.Text
     knob.Parent = knobholder
-
     local knobCorner = Instance.new("UICorner")
     knobCorner.CornerRadius = UDim.new(1, 0)
     knobCorner.Parent = knob
-
-    -- 3つの各種サブスライダーの構築
     local satSlider = createSubSlider("Saturation", ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 0, self.Value)),
         ColorSequenceKeypoint.new(1, Color3.fromHSV(self.Hue, 1, self.Value))
@@ -371,34 +308,27 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         ColorSequenceKeypoint.new(0, active_color.Dark(active_uipallet.Main, 0.02)),
         ColorSequenceKeypoint.new(1, Color3.fromHSV(self.Hue, self.Sat, self.Value))
     }))
-
     self.Object     = slider
     self.Track      = bkg
     self.Fill       = fill
     self.Preview    = preview
     self.ValueBox   = valuebox
     self.RainbowStroke = rainbowStroke
-    
     self.SatSlider  = satSlider
     self.VibSlider  = vibSlider
     self.OpSlider   = opSlider
     self.ExpandIcon = expand
-
-    -- メインスライダー（Hue）ドラッグ処理
     local mainDragging = false
     local mainDragConn = nil
-
     local function updateMainDrag(input)
         local ratio = math.clamp((input.Position.X - bkg.AbsolutePosition.X) / bkg.AbsoluteSize.X, 0, 1)
         self:SetValue(ratio, nil, nil, nil)
     end
-
     slider.InputBegan:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and (input.Position.Y - slider.AbsolutePosition.Y) > 20 then
             mainDragging = true
             if mainDragConn then mainDragConn:Disconnect() end
             updateMainDrag(input)
-
             mainDragConn = UserInputService.InputChanged:Connect(function(changedInput)
                 if mainDragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                     updateMainDrag(changedInput)
@@ -406,7 +336,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
             end)
         end
     end)
-
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if mainDragging then
@@ -418,7 +347,6 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
             end
         end
     end)
-
     slider.MouseEnter:Connect(function()
         TweenService:Create(knob, active_uipallet.Tween, {Size = UDim2.fromOffset(16, 16)}):Play()
     end)
@@ -427,20 +355,17 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
             TweenService:Create(knob, active_uipallet.Tween, {Size = UDim2.fromOffset(14, 14)}):Play()
         end
     end)
-
-    -- 各種ボタン・テキスト入力接続
     preview.MouseButton1Click:Connect(function()
         preview.Visible = false
-        rainbow.Visible = false -- 入力窓展開時、重なりを防ぐため一時的にレインボーボタンを隠す
+        rainbow.Visible = false
         valuebox.Visible = true
         valuebox:CaptureFocus()
         local c = Color3.fromHSV(self.Hue, self.Sat, self.Value)
         valuebox.Text = math.round(c.R * 255) .. ", " .. math.round(c.G * 255) .. ", " .. math.round(c.B * 255)
     end)
-
     valuebox.FocusLost:Connect(function(enter)
         preview.Visible = true
-        rainbow.Visible = true -- 入力窓が閉じられた際、レインボーボタンを再表示する
+        rainbow.Visible = true
         valuebox.Visible = false
         if enter then
             local commas = valuebox.Text:split(",")
@@ -455,21 +380,18 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
             end
         end
     end)
-
     slider:GetPropertyChangedSignal("Visible"):Connect(function()
         local state = expand.Rotation == 180 and slider.Visible
         satSlider.Visible = state
         vibSlider.Visible = state
         opSlider.Visible = state
     end)
-
     expandbutton.MouseEnter:Connect(function()
         expand.ImageColor3 = active_color.Dark(active_uipallet.Text, 0.43)
     end)
     expandbutton.MouseLeave:Connect(function()
         expand.ImageColor3 = active_color.Dark(active_uipallet.Text, 0.43)
     end)
-
     expandbutton.MouseButton1Click:Connect(function()
         local state = not satSlider.Visible
         satSlider.Visible = state
@@ -477,33 +399,21 @@ function ColorPicker.new(parent, nameOrSettings, defaultValue, callback, assets,
         opSlider.Visible = state
         expand.Rotation = state and 180 or 0
     end)
-
     rainbow.MouseButton1Click:Connect(function()
         self:Toggle()
     end)
-
-    -- 🌟 【重要バグ修正】変数名「button」を「slider」に変更して nil インデックスエラーを完全に解決
     slider.MouseButton1Click:Connect(function()
         self.Window.Visible = not self.Window.Visible
-        
         local guiCol = active_mainapi and active_mainapi.GUIColor or {Hue = 0, Sat = 1, Value = 1}
         local activeColor = self.Window.Visible and Color3.fromHSV(guiCol.Hue, guiCol.Sat, guiCol.Value) or active_color.Light(active_uipallet.Main, 0.034)
-        
         TweenService:Create(bkg, TweenInfo.new(0.12), {BackgroundColor3 = activeColor}):Play()
     end)
-
     if self.api and self.api.Options then
         self.api.Options[name] = self
     end
-
-    -- 初期表示の同期
     self:SetValue(self.Hue, self.Sat, self.Value, self.Opacity)
-
     return self
 end
-
--- ── Methods ──────────────────────────────────────────────────────────────────
-
 function ColorPicker:Save(tab)
     tab[self.Name] = {
         Hue = self.Hue,
@@ -513,7 +423,6 @@ function ColorPicker:Save(tab)
         Rainbow = self.Rainbow
     }
 end
-
 function ColorPicker:Load(tab)
     if tab.Rainbow ~= self.Rainbow then
         self:Toggle()
@@ -522,16 +431,13 @@ function ColorPicker:Load(tab)
         self:SetValue(tab.Hue, tab.Sat, tab.Value, tab.Opacity)
     end
 end
-
 function ColorPicker:SetValue(h, s, v, o)
     self.Hue = h or self.Hue
     self.Sat = s or self.Sat
     self.Value = v or self.Value
     self.Opacity = o or self.Opacity
-
     self.Preview.BackgroundColor3 = Color3.fromHSV(self.Hue, self.Sat, self.Value)
     self.Preview.BackgroundTransparency = 1 - self.Opacity
-
     self.SatSlider.Slider.UIGradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 0, self.Value)),
         ColorSequenceKeypoint.new(1, Color3.fromHSV(self.Hue, 1, self.Value))
@@ -544,7 +450,6 @@ function ColorPicker:SetValue(h, s, v, o)
         ColorSequenceKeypoint.new(0, colorDark(self.uipallet.Main, 0.02)),
         ColorSequenceKeypoint.new(1, Color3.fromHSV(self.Hue, self.Sat, self.Value))
     })
-
     if self.Rainbow then
         self.Fill.Size = UDim2.fromScale(math.clamp(self.Hue, 0.01, 0.99), 1)
     else
@@ -552,7 +457,6 @@ function ColorPicker:SetValue(h, s, v, o)
             Size = UDim2.fromScale(math.clamp(self.Hue, 0.01, 0.99), 1)
         }):Play()
     end
-
     if s then
         TweenService:Create(self.SatSlider.Slider.Fill, self.uipallet.Tween, {
             Size = UDim2.fromScale(math.clamp(self.Sat, 0.01, 0.99), 1)
@@ -568,16 +472,13 @@ function ColorPicker:SetValue(h, s, v, o)
             Size = UDim2.fromScale(math.clamp(self.Opacity, 0.01, 0.99), 1)
         }):Play()
     end
-
     if self.Callback then
         self.Callback(self.Hue, self.Sat, self.Value, self.Opacity)
     end
 end
-
 function ColorPicker:Toggle()
     self.Rainbow = not self.Rainbow
     self.RainbowStroke.Enabled = self.Rainbow
-
     if self.Rainbow then
         if self.mainapi and self.mainapi.RainbowTable then
             table.insert(self.mainapi.RainbowTable, self)
@@ -591,5 +492,4 @@ function ColorPicker:Toggle()
         end
     end
 end
-
 return ColorPicker

@@ -1,9 +1,7 @@
--- src/gui/Sidebar.lua
-local TweenService = game:GetService("TweenService")
+﻿local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local TextService = game:GetService("TextService")
 local Sidebar = {}
-
 function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
     local ContentFrame = Instance.new("Frame")
     ContentFrame.Name = "ContentFrame"
@@ -12,7 +10,6 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
     ContentFrame.BorderSizePixel = 0
     ContentFrame.ZIndex = 4
     ContentFrame.Parent = MainFrame
-
     local TabScrollingFrame = Instance.new("ScrollingFrame")
     TabScrollingFrame.Name = "TabScrollingFrame"
     TabScrollingFrame.Position = UDim2.new(0, 0, 0, 38)
@@ -25,24 +22,17 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
     TabScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     TabScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     TabScrollingFrame.Parent = ContentFrame
-
     local ContentPadding = Instance.new("UIPadding")
     ContentPadding.PaddingBottom = UDim.new(0, 10)
     ContentPadding.Parent = TabScrollingFrame
-
     local tabs = {}
-
-    -- 共通のツールチップ表示関数
     local function bindTooltip(uiObject, desc)
         local hoverActive = false
         local hoverThread = nil
-
         uiObject.MouseEnter:Connect(function()
-            -- 🌟 設定がOFFの場合はツールチップを一切表示しない
             if shared.VapeSettings and not shared.VapeSettings.ShowTooltips then
                 return
             end
-
             hoverActive = true
             hoverThread = task.delay(1, function()
                 if hoverActive and desc then
@@ -53,7 +43,6 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
                     tLabel.TextXAlignment = Enum.TextXAlignment.Left
                     tLabel.TextYAlignment = Enum.TextYAlignment.Center
                     tLabel.Text = desc
-
                     local maxWidth = 200
                     local textBounds = TextService:GetTextSize(
                         desc,
@@ -61,25 +50,20 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
                         tLabel.Font,
                         Vector2.new(maxWidth, math.huge)
                     )
-
                     local paddingX = 16
                     local paddingY = 12
-
                     tLabel.Position = UDim2.fromOffset(paddingX / 2, paddingY / 2)
                     tLabel.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
-
                     VapeTooltip.Size = UDim2.fromOffset(textBounds.X + paddingX, textBounds.Y + paddingY)
                     VapeTooltip.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
                     VapeTooltip.BackgroundTransparency = 0.15
                     VapeTooltip.BorderSizePixel = 0
-
                     local vtCorner = VapeTooltip:FindFirstChildOfClass("UICorner")
                     if not vtCorner then
                         vtCorner = Instance.new("UICorner")
                         vtCorner.CornerRadius = UDim.new(0, 4)
                         vtCorner.Parent = VapeTooltip
                     end
-
                     local vtStroke = VapeTooltip:FindFirstChildOfClass("UIStroke")
                     if not vtStroke then
                         vtStroke = Instance.new("UIStroke")
@@ -88,13 +72,11 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
                         vtStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                         vtStroke.Parent = VapeTooltip
                     end
-
                     VapeTooltip.Position = UDim2.fromOffset(UserInputService:GetMouseLocation().X + 15, UserInputService:GetMouseLocation().Y - 5)
                     VapeTooltip.Visible = true
                 end
             end)
         end)
-
         uiObject.MouseLeave:Connect(function()
             hoverActive = false
             if hoverThread then
@@ -104,21 +86,17 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
             VapeTooltip.Visible = false
         end)
     end
-
     local ListLayout = Instance.new("UIListLayout")
     ListLayout.FillDirection = Enum.FillDirection.Vertical
     ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
     ListLayout.Padding = UDim.new(0, 0)
     ListLayout.Parent = TabScrollingFrame
-
-    -- ヘッダープレースホルダー
     local HeaderPlaceholder = Instance.new("Frame")
     HeaderPlaceholder.Name = "HeaderPlaceholder"
     HeaderPlaceholder.Size = UDim2.new(1, 0, 0, 38)
     HeaderPlaceholder.BackgroundTransparency = 1
     HeaderPlaceholder.ZIndex = 4
     HeaderPlaceholder.Parent = ContentFrame
-
     local LogoContainer = Instance.new("Frame")
     LogoContainer.Name = "LogoContainer"
     LogoContainer.Size = UDim2.new(1, -50, 1, 0)
@@ -126,22 +104,16 @@ function Sidebar.init(MainFrame, assets, VapeTooltip, tLabel)
     LogoContainer.BackgroundTransparency = 1
     LogoContainer.ZIndex = 5
     LogoContainer.Parent = HeaderPlaceholder
-
 local LogoLayout = Instance.new("UIListLayout")
     LogoLayout.FillDirection = Enum.FillDirection.Horizontal
     LogoLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     LogoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    -- 🌟 隙間（Padding）を 3 から 0 に変更します。
-    -- もしこれでもまだ離れている場合は、UDim.new(0, -2) や UDim.new(0, -4) などのマイナス値に調整してみてください。
     LogoLayout.Padding = UDim.new(0, 0)
     LogoLayout.Parent = LogoContainer
-
 local VapeLogo = Instance.new("ImageLabel")
     VapeLogo.Name = "ApeLogo"
     VapeLogo.LayoutOrder = 1
     VapeLogo.BackgroundTransparency = 1
-    -- 🌟 文字が小さくならないよう、横幅を 54、縦幅を 20 に拡大調整しました
-    -- もしこれでも小さい、または大きすぎる場合は、ここの数値を調整してみてください
     VapeLogo.Size = UDim2.new(0, 58, 0, 22) 
     VapeLogo.ScaleType = Enum.ScaleType.Fit
     VapeLogo.ZIndex = 6
@@ -154,11 +126,10 @@ local VapeLogo = Instance.new("ImageLabel")
         TempText.Text = "APE"
         TempText.TextColor3 = Color3.fromRGB(255, 255, 255)
         TempText.Font = Enum.Font.SourceSansBold
-        TempText.TextSize = 18 -- 🌟 プレースホルダー文字も少し大きく
+        TempText.TextSize = 18
         TempText.Parent = VapeLogo
     end
     VapeLogo.Parent = LogoContainer
-
     local V4Logo = Instance.new("ImageLabel")
     V4Logo.Name = "V4Logo"
     V4Logo.LayoutOrder = 2
@@ -179,7 +150,6 @@ local VapeLogo = Instance.new("ImageLabel")
         TempText.Parent = V4Logo
     end
     V4Logo.Parent = LogoContainer
-
     local SettingsBtn = Instance.new("ImageButton")
     SettingsBtn.Name = "SettingsBtn"
     SettingsBtn.Size = UDim2.new(0, 16, 0, 16)
@@ -195,16 +165,13 @@ local VapeLogo = Instance.new("ImageLabel")
         SettingsBtn.ImageColor3 = Color3.fromRGB(110, 110, 110)
     end
     SettingsBtn.Parent = HeaderPlaceholder
-
     SettingsBtn.MouseEnter:Connect(function()
         TweenService:Create(SettingsBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageColor3 = Color3.fromRGB(180, 180, 180), Rotation = 45}):Play()
     end)
     SettingsBtn.MouseLeave:Connect(function()
         TweenService:Create(SettingsBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageColor3 = Color3.fromRGB(110, 110, 110), Rotation = 0}):Play()
     end)
-
     bindTooltip(SettingsBtn, "Configure GUI settings, keybinds, and window options.")
-
     local function createTab(name, iconAssetId, fallbackAssetId, layoutOrder, hasBadge, desc)
         local Tab = Instance.new("TextButton")
         Tab.Name = name .. "Tab"
@@ -215,7 +182,6 @@ local VapeLogo = Instance.new("ImageLabel")
         Tab.LayoutOrder = layoutOrder
         Tab.ZIndex = 4
         Tab.Parent = TabScrollingFrame
-
         local TabHoverBg = Instance.new("Frame")
         TabHoverBg.Name = "TabHoverBg"
         TabHoverBg.Size = UDim2.new(1, 0, 1, 0)
@@ -225,16 +191,13 @@ local VapeLogo = Instance.new("ImageLabel")
         TabHoverBg.BorderSizePixel = 0
         TabHoverBg.ZIndex = 2
         TabHoverBg.Parent = Tab
-
         local HoverCorner = Instance.new("UICorner")
         HoverCorner.CornerRadius = UDim.new(0, 5)
         HoverCorner.Parent = TabHoverBg
-
- -- Inside src/gui/Sidebar.lua -> createTab
         local iconSizeX = 15
         local iconSizeY = 15
         if name == "Minigames" then
-            iconSizeX, iconSizeY = 19, 12 -- Standardize to 19x12
+            iconSizeX, iconSizeY = 19, 12
         end
         local TabIcon = Instance.new("ImageLabel")
         TabIcon.Name = "TabIcon"
@@ -250,7 +213,6 @@ local VapeLogo = Instance.new("ImageLabel")
         end
         TabIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
         TabIcon.Parent = Tab
-
         local TabLabel = Instance.new("TextLabel")
         TabLabel.Name = "TabLabel"
         TabLabel.Size = UDim2.new(1, -60, 1, 0)
@@ -263,12 +225,10 @@ local VapeLogo = Instance.new("ImageLabel")
         TabLabel.TextXAlignment = Enum.TextXAlignment.Left
         TabLabel.ZIndex = 5
         TabLabel.Parent = Tab
-
         local Arrow = Instance.new("ImageLabel")
         Arrow.Name = "Arrow"
         Arrow.Size = UDim2.fromOffset(12, 12)
         Arrow.BackgroundTransparency = 1
-        -- 🌟 【重要修正】assets.arrow が nil の場合でも、キャストエラーにならず標準の矢印が表示されるようにフォールバックを追加
         Arrow.Image = (assets and assets.arrow) or "rbxassetid://10709791437"
         Arrow.ImageColor3 = Color3.fromRGB(140, 140, 140)
         Arrow.ScaleType = Enum.ScaleType.Fit
@@ -276,7 +236,6 @@ local VapeLogo = Instance.new("ImageLabel")
         Arrow.Position = UDim2.new(1, -15, 0.5, 0)
         Arrow.ZIndex = 5
         Arrow.Parent = Tab
-
         if hasBadge then
             local Badge = Instance.new("TextLabel")
             Badge.Name = "Badge"
@@ -291,35 +250,28 @@ local VapeLogo = Instance.new("ImageLabel")
             Badge.Font = Enum.Font.SourceSans
             Badge.ZIndex = 5
             Badge.Parent = Tab
-
             local BadgeCorner = Instance.new("UICorner")
             BadgeCorner.CornerRadius = UDim.new(0, 3)
             BadgeCorner.Parent = Badge
         end
-
         local hoverTime = 0.15
         local easingStyle = Enum.EasingStyle.Quart
         local easingDirection = Enum.EasingDirection.Out
-
         Tab.MouseEnter:Connect(function()
             TweenService:Create(TabHoverBg, TweenInfo.new(hoverTime, easingStyle, easingDirection), {BackgroundTransparency = 0.94}):Play()
             TweenService:Create(TabIcon, TweenInfo.new(hoverTime, easingStyle, easingDirection), {ImageColor3 = Color3.fromRGB(220, 220, 220), Position = UDim2.new(0, 17 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)}):Play()
             TweenService:Create(TabLabel, TweenInfo.new(hoverTime, easingStyle, easingDirection), {TextColor3 = Color3.fromRGB(220, 220, 220), Position = UDim2.new(0, 42, 0, 0)}):Play()
             TweenService:Create(Arrow, TweenInfo.new(hoverTime, easingStyle, easingDirection), {ImageColor3 = Color3.fromRGB(240, 240, 240)}):Play()
         end)
-
         Tab.MouseLeave:Connect(function()
             TweenService:Create(TabHoverBg, TweenInfo.new(hoverTime, easingStyle, easingDirection), {BackgroundTransparency = 1}):Play()
             TweenService:Create(TabIcon, TweenInfo.new(hoverTime, easingStyle, easingDirection), {ImageColor3 = Color3.fromRGB(150, 150, 150), Position = UDim2.new(0, 15 - (iconSizeX - 15) / 2, 0.5, -iconSizeY / 2)}):Play()
             TweenService:Create(TabLabel, TweenInfo.new(hoverTime, easingStyle, easingDirection), {TextColor3 = Color3.fromRGB(150, 150, 150), Position = UDim2.new(0, 40, 0, 0)}):Play()
             TweenService:Create(Arrow, TweenInfo.new(hoverTime, easingStyle, easingDirection), {ImageColor3 = Color3.fromRGB(140, 140, 140)}):Play()
         end)
-
         bindTooltip(Tab, desc)
-
         tabs[name] = Tab
     end
-
     createTab("Combat", assets.combat, "rbxassetid://10723414920", 2, nil, "Combat modules for player vs player fights.")
     createTab("Blatant", assets.blatant, "rbxassetid://10723414920", 3, nil, "Blatant hacks that are easily detectable but powerful.")
     createTab("Render", assets.render, "rbxassetid://10709765275", 4, nil, "Visual modifications like ESP, Chams, and Tracers.")
@@ -327,14 +279,12 @@ local VapeLogo = Instance.new("ImageLabel")
     createTab("World", assets.world, "rbxassetid://10723351909", 6, nil, "World-related helpers and environment tweaks.")
     createTab("Inventory", assets.inventory, "rbxassetid://10723415392", 7, nil, "Auto buy, consume, and armor-switching modules.")
     createTab("Minigames", assets.minigames, "rbxassetid://10723381488", 8, nil, "Mini-game specific modules and automations.")
-
     local MiscDivider = Instance.new("Frame")
     MiscDivider.Size = UDim2.new(1, 0, 0, 24)
     MiscDivider.BackgroundTransparency = 1
     MiscDivider.LayoutOrder = 9
     MiscDivider.ZIndex = 4
     MiscDivider.Parent = TabScrollingFrame
-
     local MiscText = Instance.new("TextLabel")
     MiscText.Size = UDim2.new(1, -30, 1, 0)
     MiscText.Position = UDim2.new(0, 15, 0, 0)
@@ -346,11 +296,9 @@ local VapeLogo = Instance.new("ImageLabel")
     MiscText.TextXAlignment = Enum.TextXAlignment.Left
     MiscText.ZIndex = 5
     MiscText.Parent = MiscDivider
-
     createTab("Friends", assets.friends, "rbxassetid://10747373426", 10, nil, "Configure your friend and whitelisted player settings.")
     createTab("Profiles", assets.profiles, "rbxassetid://10734898122", 11, "default", "Switch and customize your config profiles.")
     createTab("Macros", nil, "rbxassetid://10709811365", 12, nil, "Set up and bind custom macros to keys.")
-
     local SessionToggleBtn = Instance.new("TextButton")
     SessionToggleBtn.Name = "SessionToggleBtn"
     SessionToggleBtn.Size = UDim2.new(1, 0, 0, 38)
@@ -360,7 +308,6 @@ local VapeLogo = Instance.new("ImageLabel")
     SessionToggleBtn.AutoButtonColor = false
     SessionToggleBtn.ZIndex = 4
     SessionToggleBtn.Parent = ContentFrame
-
     local STHoverBg = Instance.new("Frame")
     STHoverBg.Size = UDim2.new(1, 0, 1, 0)
     STHoverBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -371,7 +318,6 @@ local VapeLogo = Instance.new("ImageLabel")
     local STCorner = Instance.new("UICorner")
     STCorner.CornerRadius = UDim.new(0, 5)
     STCorner.Parent = STHoverBg
-
     local STIcon = Instance.new("ImageLabel")
     STIcon.Size = UDim2.new(0, 15, 0, 15)
     STIcon.Position = UDim2.new(0, 15, 0.5, -7)
@@ -381,7 +327,6 @@ local VapeLogo = Instance.new("ImageLabel")
     STIcon.ScaleType = Enum.ScaleType.Fit
     STIcon.ZIndex = 5
     STIcon.Parent = SessionToggleBtn
-
     local STLabel = Instance.new("TextLabel")
     STLabel.Size = UDim2.new(1, -60, 1, 0)
     STLabel.Position = UDim2.new(0, 40, 0, 0)
@@ -393,7 +338,6 @@ local VapeLogo = Instance.new("ImageLabel")
     STLabel.TextXAlignment = Enum.TextXAlignment.Left
     STLabel.ZIndex = 5
     STLabel.Parent = SessionToggleBtn
-
     SessionToggleBtn.MouseEnter:Connect(function()
         TweenService:Create(STHoverBg, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = 0.94}):Play()
         TweenService:Create(STIcon, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {ImageColor3 = Color3.fromRGB(220, 220, 220)}):Play()
@@ -404,10 +348,7 @@ local VapeLogo = Instance.new("ImageLabel")
         TweenService:Create(STIcon, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {ImageColor3 = Color3.fromRGB(150, 150, 150)}):Play()
         TweenService:Create(STLabel, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
     end)
-
     bindTooltip(SessionToggleBtn, "Toggle the visibility of the Session Info overlay.")
-
     return SettingsBtn, SessionToggleBtn, tabs
 end
-
 return Sidebar

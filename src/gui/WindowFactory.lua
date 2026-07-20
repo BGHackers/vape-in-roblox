@@ -1,19 +1,14 @@
--- src/gui/WindowFactory.lua
-local TweenService = game:GetService("TweenService")
+﻿local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local WindowFactory = {}
-
--- Set up dragging functionality
 function WindowFactory.setupDraggable(frame, handle)
     local dragging, dragInput, dragStart, startPos
-    
     local function update(input)
         local delta = input.Position - dragStart
         local targetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         frame:SetAttribute("BasePosition", targetPos)
         TweenService:Create(frame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos}):Play()
     end
-    
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging, dragStart, startPos = true, input.Position, frame.Position
@@ -22,21 +17,17 @@ function WindowFactory.setupDraggable(frame, handle)
             end)
         end
     end)
-    
     handle.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
-    
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             update(input)
         end
     end)
 end
-
--- Create the base window container, main frame, and header
 function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAssetId)
     local container = Instance.new("Frame")
     container.Name = name .. "Container"
@@ -47,9 +38,7 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     container.Active = true
     container.ZIndex = 2
     container.Parent = ScreenGui
-
     container:SetAttribute("BasePosition", position)
-
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
     shadow.Size = UDim2.new(1, 89, 1, 52)
@@ -62,7 +51,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     shadow.ImageTransparency = 0.2
     shadow.ZIndex = 1
     shadow.Parent = container
-
     local mainFrame = Instance.new("CanvasGroup")
     mainFrame.Name = "MainFrame"
     mainFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -70,22 +58,18 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     mainFrame.BorderSizePixel = 0
     mainFrame.ZIndex = 2
     mainFrame.Parent = container
-
     local addBlurFunc = addBlur or addblur or (shared.vape and shared.vape.addBlur) or (shared.vape and shared.vape.addblur)
     if addBlurFunc then
         pcall(addBlurFunc, mainFrame)
     end
-
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = mainFrame
-
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
     stroke.Color = Color3.fromRGB(35, 35, 35)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = mainFrame
-
     local header = Instance.new("Frame")
     header.Name = "Header"
     header.Size = UDim2.new(1, 0, 0, 38)
@@ -93,7 +77,6 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     header.BorderSizePixel = 0
     header.ZIndex = 3
     header.Parent = mainFrame
-
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.BackgroundTransparency = 1
@@ -103,25 +86,20 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.ZIndex = 4
     titleLabel.Parent = header
-
     if iconAssetId then
-        -- 🌟 Determine icon size based on the window name (Standard is 16x16, Minigames is 19x19)
         local iconSizeX = 16
         local iconSizeY = 16
         if name == "Minigames" then
             iconSizeX, iconSizeY = 19, 19
         end
-
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
         icon.Size = UDim2.new(0, iconSizeX, 0, iconSizeY)
-        -- Precise horizontal and vertical offset calculations to prevent border clipping
         icon.Position = UDim2.new(0, 15 - (iconSizeX - 16) / 2, 0.5, -iconSizeY / 2)
         icon.BackgroundTransparency = 1
         icon.Image = iconAssetId
         icon.ZIndex = 4
         icon.Parent = header
-
         titleLabel.Position = UDim2.new(0, 38, 0, 0)
         titleLabel.Size = UDim2.new(1, -53, 1, 0)
         titleLabel.Text = name
@@ -130,10 +108,8 @@ function WindowFactory.createBaseWindow(ScreenGui, name, size, position, iconAss
         titleLabel.Size = UDim2.new(1, -30, 1, 0)
         titleLabel.Text = name
     end
-
     return container, mainFrame, header
 end
-
 function WindowFactory.addModule(listFrame, name, desc)
     local ModuleBtn = Instance.new("TextButton")
     ModuleBtn.Name = name .. "Module"
@@ -143,7 +119,6 @@ function WindowFactory.addModule(listFrame, name, desc)
     ModuleBtn.AutoButtonColor = false
     ModuleBtn.ZIndex = 3
     ModuleBtn.Parent = listFrame
-
     local HoverBg = Instance.new("Frame")
     HoverBg.Name = "HoverBg"
     HoverBg.Size = UDim2.new(1, -10, 1, 0)
@@ -153,11 +128,9 @@ function WindowFactory.addModule(listFrame, name, desc)
     HoverBg.BorderSizePixel = 0
     HoverBg.ZIndex = 2
     HoverBg.Parent = ModuleBtn
-    
     local HoverCorner = Instance.new("UICorner")
     HoverCorner.CornerRadius = UDim.new(0, 4)
     HoverCorner.Parent = HoverBg
-
     local Label = Instance.new("TextLabel")
     Label.Name = "Label"
     Label.Size = UDim2.new(1, -50, 1, 0)
@@ -170,7 +143,6 @@ function WindowFactory.addModule(listFrame, name, desc)
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.ZIndex = 3
     Label.Parent = ModuleBtn
-
     local OptionBtn = Instance.new("TextButton")
     OptionBtn.Name = "OptionBtn"
     OptionBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -182,41 +154,33 @@ function WindowFactory.addModule(listFrame, name, desc)
     OptionBtn.Font = Enum.Font.GothamBold
     OptionBtn.ZIndex = 4
     OptionBtn.Parent = ModuleBtn
-
     local enabled = false
-
     local function toggle(state)
         enabled = state
         local targetColor = enabled and Color3.fromRGB(30, 180, 130) or Color3.fromRGB(150, 150, 150)
         TweenService:Create(Label, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextColor3 = targetColor}):Play()
     end
-
     ModuleBtn.MouseEnter:Connect(function()
         TweenService:Create(HoverBg, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = 0.95}):Play()
         if not enabled then
             TweenService:Create(Label, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
         end
     end)
-
     ModuleBtn.MouseLeave:Connect(function()
         TweenService:Create(HoverBg, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
         if not enabled then
             TweenService:Create(Label, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
         end
     end)
-
     ModuleBtn.MouseButton1Click:Connect(function()
         toggle(not enabled)
     end)
-
     OptionBtn.MouseEnter:Connect(function()
         TweenService:Create(OptionBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
     end)
     OptionBtn.MouseLeave:Connect(function()
         TweenService:Create(OptionBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(110, 110, 110)}):Play()
     end)
-
     return ModuleBtn, OptionBtn
 end
-
 return WindowFactory

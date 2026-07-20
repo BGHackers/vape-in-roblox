@@ -1,18 +1,13 @@
--- src/gui/components/Dropdown.lua
-local TweenService = game:GetService("TweenService")
+﻿local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-
 local Dropdown = {}
 Dropdown.__index = Dropdown
-
 local default_uipallet = {
     Main  = Color3.fromRGB(26, 25, 26),
     Text  = Color3.fromRGB(200, 200, 200),
     Font  = Enum.Font.SourceSans,
     Tween = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 }
-
--- どの関数からでも安全に呼び出せるファイル共通のローカル関数
 local function tweenProperty(self, instance, properties)
     local active_tween = (tween and tween.Tween) and tween or nil
     if active_tween then
@@ -21,7 +16,6 @@ local function tweenProperty(self, instance, properties)
         TweenService:Create(instance, self.uipallet.Tween, properties):Play()
     end
 end
-
 local function getTableSize(t)
     local count = 0
     if typeof(t) == "table" then
@@ -29,17 +23,14 @@ local function getTableSize(t)
     end
     return count
 end
-
 local function colorDark(col, num)
     local h, s, v = col:ToHSV()
     return Color3.fromHSV(h, s, math.clamp(v - num, 0, 1))
 end
-
 local function colorLight(col, num)
     local h, s, v = col:ToHSV()
     return Color3.fromHSV(h, s, math.clamp(v + num, 0, 1))
 end
-
 local function applyFont(instance, font)
     if typeof(font) == "Font" then
         instance.FontFace = font
@@ -49,11 +40,8 @@ local function applyFont(instance, font)
         pcall(function() instance.FontFace = font end)
     end
 end
-
--- 【コンストラクタ】
 function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, moduleInstance)
     local self = setmetatable({}, Dropdown)
-
     local name = nameOrSettings
     local optionsettings = {}
     if type(nameOrSettings) == "table" then
@@ -63,14 +51,12 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
         defaultValue = optionsettings.Default
         callback = optionsettings.Function
     end
-
     local active_mainapi = mainapi or (shared.vape and shared.vape.mainapi)
     self.api = moduleInstance or active_mainapi or shared.vape or (shared.VapeMenu)
     self.mainapi = active_mainapi
     local active_uipallet = (uipallet and uipallet.Main) and uipallet or default_uipallet
     self.uipallet = active_uipallet
     local active_color = (color and color.Light and color.Dark) and color or { Light = colorLight, Dark = colorDark }
-
     self.Name = name
     self.Type = "Dropdown"
     self.List = list or {}
@@ -78,20 +64,14 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     self.Callback = callback or function() end
     self.Index = (self.api and self.api.Options) and getTableSize(self.api.Options) or 0
     self.ModuleInstance = moduleInstance
-
-    -- 接続イベント安全管理用
     self.OutsideClickConnection = nil
-
-    -- 🌟 【重要修正】親枠を TextButton から透明な Frame に変更し、子要素への入力干渉を防ぎます
     local dropdown = Instance.new("Frame")
     dropdown.Name = name .. "DropdownSetting"
     dropdown.Size = UDim2.new(1, 0, 0, 40)
     dropdown.BackgroundTransparency = 1
     dropdown.Visible = optionsettings.Visible == nil or optionsettings.Visible
-    dropdown.ClipsDescendants = true -- スライド展開時に中身をクリップ
+    dropdown.ClipsDescendants = true
     dropdown.Parent = parent
-
-    -- 🌟 【重要修正】背景枠 (BKG) を 展開時も常に固定の高さ (31px) に設定します
     local bkg = Instance.new("Frame")
     bkg.Name = "BKG"
     bkg.Size = UDim2.new(1, -24, 0, 31)
@@ -101,7 +81,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     bkg.BorderSizePixel = 0
     bkg.ClipsDescendants = true
     bkg.Parent = dropdown
-
     if addCorner then
         addCorner(bkg, UDim.new(0, 6))
     else
@@ -109,8 +88,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
         c.CornerRadius = UDim.new(0, 6)
         c.Parent = bkg
     end
-
-    -- 🌟 【重要修正】メインの開閉ボタンを 展開時も常に固定の高さ (29px) に維持します
     local button = Instance.new("TextButton")
     button.Name = "Dropdown"
     button.Size = UDim2.new(1, -2, 0, 29)
@@ -119,7 +96,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     button.AutoButtonColor = false
     button.Text = ""
     button.Parent = bkg
-
     if addCorner then
         addCorner(button, UDim.new(0, 6))
     else
@@ -127,18 +103,13 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
         c.CornerRadius = UDim.new(0, 6)
         c.Parent = button
     end
-
     local buttonPadding = Instance.new("UIPadding")
     buttonPadding.PaddingLeft = UDim.new(0, 12)
     buttonPadding.PaddingRight = UDim.new(0, 12)
     buttonPadding.Parent = button
-
-    -- ツールチップは実際にクリックできる button に登録
     if addTooltip and (optionsettings.Tooltip or name) then
         addTooltip(button, optionsettings.Tooltip or name)
     end
-
-    -- タイトルテキスト
     local title = Instance.new("TextLabel")
     title.Name = "Title"
     title.Size = UDim2.new(1, -30, 0, 29)
@@ -150,8 +121,6 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     title.TextTruncate = Enum.TextTruncate.AtEnd
     applyFont(title, active_uipallet.Font)
     title.Parent = button
-
-    -- 開閉矢印アイコン
     local arrow = Instance.new("ImageLabel")
     arrow.Name = "Arrow"
     arrow.Size = UDim2.fromOffset(12, 12)
@@ -163,37 +132,27 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     arrow.ScaleType = Enum.ScaleType.Fit
     arrow.Rotation = 90
     arrow.Parent = button
-
     self.Object = dropdown
     self.Bkg = bkg
     self.Button = button
     self.Title = title
     self.Arrow = arrow
     self.DropdownChildren = nil
-
-    -- 領域外イベント用クリーンアップ関数
     local function disconnectOutsideClick()
         if self.OutsideClickConnection then
             self.OutsideClickConnection:Disconnect()
             self.OutsideClickConnection = nil
         end
     end
-
-    -- 展開・閉縮ロジック
     button.MouseButton1Click:Connect(function()
         if not self.DropdownChildren then
             tweenProperty(self, arrow, { Rotation = 270 })
-            
-            -- アイテム数に応じたスクロール切り替えロジック
             local listSize = #self.List
             local maxVisibleItems = 6
             local optionHeight = 26
             local useScroll = listSize > maxVisibleItems
-            
             local childrenHeight = useScroll and (maxVisibleItems * optionHeight) or (listSize * optionHeight)
             local expandedHeight = 40 + childrenHeight
-
-            -- コンテナ生成 (Frame または ScrollingFrame)
             local childrenFrame
             if useScroll then
                 childrenFrame = Instance.new("ScrollingFrame")
@@ -209,18 +168,13 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
                 childrenFrame.Size = UDim2.new(1, 0, 0, childrenHeight)
                 childrenFrame.BackgroundTransparency = 1
             end
-            
-            -- 🌟 【重要修正】選択肢フレームは button の中ではなく、親 Frame (dropdown) の直下に並列配置します
             childrenFrame.Name = "Children"
             childrenFrame.Position = UDim2.fromOffset(12, 38)
             childrenFrame.Parent = dropdown
             self.DropdownChildren = childrenFrame
-
-            -- UIListLayout による整列
             local listLayout = Instance.new("UIListLayout")
             listLayout.SortOrder = Enum.SortOrder.LayoutOrder
             listLayout.Parent = childrenFrame
-
             local ind = 0
             for _, v in ipairs(self.List) do
                 local option = Instance.new("TextButton")
@@ -232,25 +186,19 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
                 option.AutoButtonColor = false
                 option.Text = v
                 option.TextXAlignment = Enum.TextXAlignment.Left
-                
-                -- アクティブアイテムの色強調
                 if v == self.Value then
                     option.TextColor3 = active_uipallet.Text
                 else
                     option.TextColor3 = active_color.Dark(active_uipallet.Text, 0.16)
                 end
-                
                 option.TextSize = 15 
                 option.TextTruncate = Enum.TextTruncate.AtEnd
                 applyFont(option, active_uipallet.Font)
                 option.Parent = childrenFrame
-
                 local optionPadding = Instance.new("UIPadding")
                 optionPadding.PaddingLeft = UDim.new(0, 12)
                 optionPadding.PaddingRight = UDim.new(0, 12)
                 optionPadding.Parent = option
-
-                -- オプションのホバー処理
                 local hoverCol = active_color.Light(active_uipallet.Main, 0.02)
                 option.MouseEnter:Connect(function()
                     tweenProperty(self, option, { BackgroundColor3 = hoverCol })
@@ -258,28 +206,19 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
                 option.MouseLeave:Connect(function()
                     tweenProperty(self, option, { BackgroundColor3 = active_uipallet.Main })
                 end)
-
-                -- 選択クリック時
                 option.MouseButton1Click:Connect(function()
                     self:SetValue(v, true)
                 end)
-
                 ind = ind + 1
             end
-
-            -- サイズの展開アニメーション
             tweenProperty(self, dropdown, { Size = UDim2.new(1, 0, 0, expandedHeight) })
-
-            -- 外側クリック時の閉じ処理バインド
             disconnectOutsideClick()
             self.OutsideClickConnection = UserInputService.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     local mousePos = UserInputService:GetMouseLocation()
                     local absPos = dropdown.AbsolutePosition
-                    
                     local x1, y1 = absPos.X, absPos.Y
                     local x2, y2 = x1 + dropdown.AbsoluteSize.X, y1 + dropdown.AbsoluteSize.Y
-                    
                     local isInside = mousePos.X >= x1 and mousePos.X <= x2 and mousePos.Y >= y1 and mousePos.Y <= y2
                     if not isInside then
                         self:SetValue(self.Value, false)
@@ -289,14 +228,10 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
         else
             self:SetValue(self.Value, true)
         end
-
-        -- 親メニュー全体のレイアウト高さを追従更新
         if self.ModuleInstance and self.ModuleInstance._refreshOptionsHeight then
             self.ModuleInstance:_refreshOptionsHeight()
         end
     end)
-
-    -- 外側の枠ホバー
     local hoverBkgCol = active_color.Light(active_uipallet.Main, 0.0875)
     local normalBkgCol = active_color.Light(active_uipallet.Main, 0.034)
     dropdown.MouseEnter:Connect(function()
@@ -305,62 +240,45 @@ function Dropdown.new(parent, nameOrSettings, list, defaultValue, callback, modu
     dropdown.MouseLeave:Connect(function()
         tweenProperty(self, bkg, { BackgroundColor3 = normalBkgCol })
     end)
-
     if self.api and self.api.Options then
         self.api.Options[name] = self
     end
-
     return self
 end
-
 function Dropdown:Save(tab)
     tab[self.Name] = {Value = self.Value}
 end
-
 function Dropdown:Load(tab)
     if self.Value ~= tab.Value then
         self:SetValue(tab.Value)
     end
 end
-
 function Dropdown:Change(list)
     self.List = list or {}
     if not table.find(self.List, self.Value) then
         self:SetValue(self.Value)
     end
 end
-
 function Dropdown:SetValue(val, mouse)
     self.Value = table.find(self.List, val) and val or self.List[1] or "None"
     self.Title.Text = self.Name .. " - " .. self.Value
-
-    -- 展開されていた場合はスムーズに閉じる
     if self.DropdownChildren then
-        -- 外側クリック検知イベントの安全解除
         if self.OutsideClickConnection then
             self.OutsideClickConnection:Disconnect()
             self.OutsideClickConnection = nil
         end
-
         tweenProperty(self, self.Arrow, { Rotation = 90 })
         self.DropdownChildren:Destroy()
         self.DropdownChildren = nil
-        
-        -- クローズアニメーションの再生
         tweenProperty(self, self.Object, { Size = UDim2.new(1, 0, 0, 40) })
-
-        -- 閉じたことを即座に親ウィンドウに通知してリサイズ
         if self.ModuleInstance and self.ModuleInstance._refreshOptionsHeight then
             self.ModuleInstance:_refreshOptionsHeight()
         end
     end
-
     if self.Callback then
         self.Callback(self.Value, mouse)
     end
 end
-
--- デストラクター（メモリ解放用）
 function Dropdown:Destroy()
     if self.OutsideClickConnection then
         self.OutsideClickConnection:Disconnect()
@@ -376,5 +294,4 @@ function Dropdown:Destroy()
     self.Arrow = nil
     self.DropdownChildren = nil
 end
-
 return Dropdown

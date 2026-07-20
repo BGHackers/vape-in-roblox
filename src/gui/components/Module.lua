@@ -1,7 +1,5 @@
--- src/gui/components/Module.lua
-local TweenService     = game:GetService("TweenService")
+﻿local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-
 local components = {
     Toggle        = require("gui.components.Toggle"),
     Slider        = require("gui.components.Slider"),
@@ -13,52 +11,40 @@ local components = {
     Section       = require("gui.components.Section"),
 }
 local Module = {}
-
 for compName, compClass in pairs(components) do
     local methodName = "Create" .. compName
     Module[methodName] = function(self, ...)
         local args = {...}
         table.insert(args, self)
-        
         local res = compClass.new(self.OptionsFrame, unpack(args))
-        
         local optionName = (res.Name) or (res.Object and res.Object.Name) or compName
         self.Options[optionName] = res
-        
         self:_refreshOptionsHeight()
         return res
     end
 end
-
 Module.__index = Module
-
 local DEBUG_ENABLED = true
 local function debugPrint(...)
     if DEBUG_ENABLED then print("[Module]", ...) end
 end
-
 local TWEEN_INFO   = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 local FONT_SEMI    = Enum.Font.SourceSansSemibold
 local FONT_BOLD    = Enum.Font.SourceSansBold
-
 local COL_TEXT_OFF    = Color3.fromRGB(130, 130, 130)
 local COL_TEXT_HOVER  = Color3.fromRGB(210, 210, 210)
 local COL_TEXT_ON     = Color3.fromRGB(255, 255, 255)
-
 local COL_ICON_OFF    = Color3.fromRGB(95,  95,  95)
 local COL_ICON_HOVER  = Color3.fromRGB(170, 170, 170)
 local COL_ICON_ON     = Color3.fromRGB(200, 200, 200)
-
 local COL_HOVER_BG    = Color3.fromRGB(255, 255, 255)
 local COL_ACTIVE_BG   = Color3.fromRGB(16,  133, 96)
-
 local default_uipallet = {
     Main  = Color3.fromRGB(26, 25, 26),
     Text  = COL_TEXT_OFF,
     Font  = FONT_SEMI,
     Tween = TWEEN_INFO,
 }
-
 local function addMaid(obj)
     obj.Connections = {}
     function obj:Clean(cb)
@@ -73,13 +59,11 @@ local function addMaid(obj)
         end
     end
 end
-
 local function getTableSize(t)
     local n = 0
     if type(t) == "table" then for _ in pairs(t) do n = n + 1 end end
     return n
 end
-
 local function getAsset(self, path, default)
     if self.getcustomasset then
         local ok, res = pcall(self.getcustomasset, path)
@@ -87,10 +71,8 @@ local function getAsset(self, path, default)
     end
     return default
 end
-
 local function colorLight(c, n) local h,s,v = c:ToHSV(); return Color3.fromHSV(h,s,math.clamp(v+n,0,1)) end
 local function colorDark (c, n) local h,s,v = c:ToHSV(); return Color3.fromHSV(h,s,math.clamp(v-n,0,1)) end
-
 local function calcOptionsHeight(frame, layout)
     local h = layout.AbsoluteContentSize.Y
     if h > 0 then return h end
@@ -102,7 +84,6 @@ local function calcOptionsHeight(frame, layout)
     end
     return total + math.max(cnt-1,0)*4
 end
-
 local function adjustComponentTextSize(s)
     local function traverse(instance)
         if instance:IsA("TextLabel") or instance:IsA("TextButton") then
@@ -120,7 +101,6 @@ local function adjustComponentTextSize(s)
             traverse(child)
         end
     end
-
     if s then
         if typeof(s) == "table" then
             if s.Object then traverse(s.Object) end
@@ -131,24 +111,18 @@ local function adjustComponentTextSize(s)
         end
     end
 end
-
--- Constructor
 function Module.new(parent, nameOrSettings, callback, assets, api)
     local self = setmetatable({}, Module)
-
     local name, modulesettings = nameOrSettings, {}
     if type(nameOrSettings) == "table" then
         modulesettings = nameOrSettings
         name     = modulesettings.Name
         callback = modulesettings.Function
     end
-
-    -- Safety check: Avoid "attempt to concatenate nil with string" if name is missing or nil
     if not name or name == "" then
         name = "UnnamedModule"
     end
     debugPrint("new:", name)
-
     local mapi   = api or mainapi or (shared.vape) or (shared.VapeMenu)
     local libs   = mapi and mapi.Libraries
     local pal    = (libs and libs.uipallet) or (uipallet and uipallet.Main and uipallet) or default_uipallet
@@ -156,7 +130,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     local tw     = (libs and libs.tween) or nil
     local gfs    = (libs and libs.getfontsize) or getfontsize
     local gca    = (libs and libs.getcustomasset) or getcustomasset
-
     self.api            = mapi
     self.mainapi        = mapi
     self.uipallet       = pal
@@ -178,7 +151,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     self.Callback       = callback or function() end
     self.IsBinding      = false
     self.OptionsExpanded = false
-
     task.spawn(function()
         if parent then
             if parent:IsA("Frame") or parent:IsA("ScrollingFrame") then
@@ -192,14 +164,12 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
             end
         end
     end)
-
     local moduleFrame = Instance.new("Frame")
     moduleFrame.Name              = name .. "Frame"
     moduleFrame.Size              = UDim2.new(1, 0, 0, 44)
     moduleFrame.BackgroundTransparency = 1
     moduleFrame.BorderSizePixel   = 0
     moduleFrame.Parent            = parent
-
     local button = Instance.new("TextButton")
     button.Name               = name
     button.Size               = UDim2.new(1, 0, 0, 44)
@@ -209,7 +179,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     button.AutoButtonColor    = false
     button.ZIndex             = 4
     button.Parent             = moduleFrame
-
     local hoverBg = Instance.new("Frame")
     hoverBg.Name                  = "HoverBg"
     hoverBg.Position              = UDim2.new(0, 0, 0, 0)
@@ -219,7 +188,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     hoverBg.BorderSizePixel       = 0
     hoverBg.ZIndex                = 2
     hoverBg.Parent                = button
-
     local activeBg = Instance.new("Frame")
     activeBg.Name                  = "ActiveBg"
     activeBg.Position              = UDim2.new(0, 0, 0, 0)
@@ -229,12 +197,10 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     activeBg.BorderSizePixel       = 0
     activeBg.ZIndex                = 3
     activeBg.Parent                = button
-
     local gradient = Instance.new("UIGradient")
     gradient.Rotation = 90
     gradient.Enabled  = false
     gradient.Parent   = activeBg
-
     local divider = Instance.new("Frame")
     divider.Name             = "Divider"
     divider.Size             = UDim2.new(1, 0, 0, 1)
@@ -244,7 +210,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     divider.Visible          = true
     divider.ZIndex           = 4
     divider.Parent             = button
-
     local label = Instance.new("TextLabel")
     label.Name               = "Label"
     label.Size               = UDim2.new(1, -90, 1, 0)
@@ -258,7 +223,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     local ok = pcall(function() label.FontFace = pal.Font end)
     if not ok then label.Font = FONT_SEMI end
     label.Parent = button
-
     local colorDotFrame = Instance.new("Frame")
     colorDotFrame.Name               = "ColorDot"
     colorDotFrame.Size               = UDim2.fromOffset(0, 0)
@@ -268,7 +232,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     colorDotFrame.BorderSizePixel    = 0
     colorDotFrame.ZIndex             = 5
     colorDotFrame.Parent             = button
-
     local optionBtn = Instance.new("TextButton")
     optionBtn.Name               = "Dots"
     optionBtn.Size               = UDim2.fromOffset(12, 18)
@@ -278,7 +241,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     optionBtn.Text               = ""
     optionBtn.ZIndex             = 5
     optionBtn.Parent             = button
-
     local optionIcon = Instance.new("ImageLabel")
     optionIcon.Name              = "DotsIcon"
     optionIcon.Size              = UDim2.fromOffset(14, 14)
@@ -290,7 +252,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     optionIcon.ScaleType         = Enum.ScaleType.Fit
     optionIcon.ZIndex            = 6
     optionIcon.Parent            = optionBtn
-
     local bindBtn = Instance.new("TextButton")
     bindBtn.Name               = "Bind"
     bindBtn.Size               = UDim2.fromOffset(18, 18)
@@ -300,7 +261,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     bindBtn.Text               = ""
     bindBtn.ZIndex             = 5
     bindBtn.Parent             = button
-
     local bindFrame = Instance.new("Frame")
     bindFrame.Name               = "BindFrame"
     bindFrame.Size               = UDim2.new(1, 0, 1, 0)
@@ -309,18 +269,15 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     bindFrame.BorderSizePixel    = 0
     bindFrame.ZIndex             = 5
     bindFrame.Parent             = bindBtn
-
     local bfc = Instance.new("UICorner")
     bfc.CornerRadius = UDim.new(0, 4)
     bfc.Parent = bindFrame
-
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
     stroke.Color = Color3.fromRGB(255, 255, 255)
     stroke.Transparency = 0.85
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = bindFrame
-
     local bindIcon = Instance.new("ImageLabel")
     bindIcon.Name              = "Icon"
     bindIcon.Size              = UDim2.fromOffset(12, 12)
@@ -332,7 +289,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     bindIcon.ZIndex            = 6
     bindIcon.Image             = (type(assets) == "table" and assets.bind) or getAsset(self, "newvape/assets/new/bind.png", "rbxassetid://14368304734")
     bindIcon.Parent            = bindFrame
-
     local bindText = Instance.new("TextLabel")
     bindText.Name              = "BindText"
     bindText.Size              = UDim2.new(1, 0, 1, 0)
@@ -345,7 +301,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     local bfok = pcall(function() bindText.FontFace = pal.Font end)
     if not bfok then bindText.Font = FONT_BOLD end
     bindText.Parent = bindFrame
-
     local starBtn = Instance.new("TextButton")
     starBtn.Name               = "StarBtn"
     starBtn.Size               = UDim2.fromOffset(24, 24)
@@ -356,14 +311,13 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     starBtn.ZIndex             = 5
     starBtn.Visible            = false
     starBtn.Parent             = button
-
     local starIcon = Instance.new("TextLabel")
     starIcon.Name              = "Icon"
     starIcon.Size              = UDim2.new(1, 0, 1, 0)
     starIcon.AnchorPoint       = Vector2.new(0.5, 0.5)
     starIcon.Position          = UDim2.new(0.5, 0, 0.5, -1)
     starIcon.BackgroundTransparency = 1
-    starIcon.Text              = "★"
+    starIcon.Text              = "笘・
     starIcon.TextSize          = 22
     starIcon.Font              = FONT_BOLD
     starIcon.TextXAlignment    = Enum.TextXAlignment.Center
@@ -371,7 +325,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     starIcon.TextColor3        = Color3.fromRGB(70, 70, 70)
     starIcon.ZIndex            = 6
     starIcon.Parent            = starBtn
-
     local optionsFrame = Instance.new("Frame")
     optionsFrame.Name              = "OptionsFrame"
     optionsFrame.Size              = UDim2.new(1, 0, 0, 0)
@@ -382,55 +335,45 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     optionsFrame.Visible           = false
     optionsFrame.ZIndex            = 2
     optionsFrame.Parent            = moduleFrame
-
     local optionsLayout = Instance.new("UIListLayout")
     optionsLayout.FillDirection        = Enum.FillDirection.Vertical
     optionsLayout.SortOrder            = Enum.SortOrder.LayoutOrder
     optionsLayout.HorizontalAlignment  = Enum.HorizontalAlignment.Center
     optionsLayout.Parent               = optionsFrame
-
     local hoverTime = 0.15
     local ease, dir = Enum.EasingStyle.Quart, Enum.EasingDirection.Out
-
     button.MouseEnter:Connect(function()
         if self.Enabled then return end
         TweenService:Create(hoverBg,    TweenInfo.new(hoverTime,ease,dir), {BackgroundTransparency = 0.94}):Play()
         TweenService:Create(label,      TweenInfo.new(hoverTime,ease,dir), {TextColor3 = COL_TEXT_HOVER}):Play()
         TweenService:Create(optionIcon, TweenInfo.new(hoverTime,ease,dir), {ImageColor3 = COL_ICON_HOVER}):Play()
     end)
-
     button.MouseLeave:Connect(function()
         if self.Enabled then return end
         TweenService:Create(hoverBg,    TweenInfo.new(hoverTime,ease,dir), {BackgroundTransparency = 1}):Play()
         TweenService:Create(label,      TweenInfo.new(hoverTime,ease,dir), {TextColor3 = COL_TEXT_OFF}):Play()
         TweenService:Create(optionIcon, TweenInfo.new(hoverTime,ease,dir), {ImageColor3 = COL_ICON_OFF}):Play()
     end)
-
     bindBtn.MouseEnter:Connect(function()
         TweenService:Create(bindFrame, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundTransparency = 0.45
         }):Play()
     end)
-
     bindBtn.MouseLeave:Connect(function()
         TweenService:Create(bindFrame, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundTransparency = 0.65
         }):Play()
     end)
-
     button.MouseButton1Click:Connect(function()
         self:Toggle()
     end)
-
     optionBtn.MouseButton1Click:Connect(function()
         self:ToggleOptions()
     end)
-
     starBtn.MouseButton1Click:Connect(function()
         self.Starred = not self.Starred
         starIcon.TextColor3 = self.Starred and Color3.fromRGB(255, 255, 255) or (self.Enabled and Color3.fromRGB(180, 180, 180) or Color3.fromRGB(70, 70, 70))
     end)
-
     bindBtn.MouseButton1Click:Connect(function()
         if self.IsBinding then return end
         self.IsBinding = true
@@ -447,7 +390,6 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
             end
         end)
     end)
-
     self.Frame         = moduleFrame
     self.Object        = button
     self.HoverBg       = hoverBg
@@ -464,11 +406,9 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
     self.BindFrame     = bindFrame
     self.BindIcon      = bindIcon
     self.BindText      = bindText
-
     self.OptionsFrame  = optionsFrame
     self.OptionsLayout = optionsLayout
     self.Children      = optionsFrame
-
     local comps = (mapi and mapi.Components) or (shared.vape and shared.vape.Components)
     if type(comps) == "table" then
         for k, v in pairs(comps) do
@@ -481,13 +421,10 @@ function Module.new(parent, nameOrSettings, callback, assets, api)
             end
         end
     end
-
     addMaid(self)
     return self
 end
-
 -- Methods
-
 function Module:SetBind(tab, mouse)
     debugPrint("SetBind:", self.Name, table.concat(tab, "+"))
     if tab.Mobile then
@@ -498,7 +435,6 @@ function Module:SetBind(tab, mouse)
     self.IsBinding = false
     self:UpdateBindState()
 end
-
 function Module:UpdateBindState()
     local hasBind = #self.Bind > 0
     self.BindIcon.Visible = not hasBind
@@ -507,21 +443,16 @@ function Module:UpdateBindState()
         self.BindText.Text = table.concat(self.Bind, "+")
     end
 end
-
 function Module:SetState(state, multiple)
     debugPrint("SetState:", self.Name, state)
     self.Enabled = state
-
     if self.Gradient then self.Gradient.Enabled  = state end
-
     TweenService:Create(self.Label, TWEEN_INFO, {
         TextColor3 = state and COL_TEXT_ON or COL_TEXT_OFF
     }):Play()
-
     TweenService:Create(self.ColorDot, TWEEN_INFO, {
         BackgroundTransparency = state and 0 or 1
     }):Play()
-
     local mapi = self.mainapi or (shared.vape and shared.vape.mainapi)
     local activeCol = COL_ACTIVE_BG
     local rainbow = mapi and mapi.GUIColor and mapi.GUIColor.Rainbow and mapi.RainbowMode and mapi.RainbowMode.Value ~= "Retro"
@@ -532,7 +463,6 @@ function Module:SetState(state, multiple)
             activeCol = Color3.fromHSV(mapi.GUIColor.Hue, mapi.GUIColor.Sat, mapi.GUIColor.Value)
         end
     end
-
     if self.tween and self.tween.Tween then
         self.tween:Tween(self.ActiveBg, self.uipallet.Tween, {
             BackgroundTransparency = state and 0 or 1,
@@ -544,36 +474,28 @@ function Module:SetState(state, multiple)
             BackgroundColor3       = activeCol,
         }):Play()
     end
-
     TweenService:Create(self.OptionIcon, TWEEN_INFO, {
         ImageColor3 = state and COL_TEXT_ON or COL_ICON_OFF
     }):Play()
-
     TweenService:Create(self.BindIcon, TWEEN_INFO, {
         ImageColor3 = state and COL_TEXT_ON or COL_TEXT_OFF
     }):Play()
-
     TweenService:Create(self.HoverBg, TWEEN_INFO, {BackgroundTransparency = 1}):Play()
-
     self.StarButton.Visible = state
     TweenService:Create(self.StarIcon, TWEEN_INFO, {
         TextColor3 = self.Starred and Color3.fromRGB(255, 255, 255) or (state and Color3.fromRGB(180, 180, 180) or Color3.fromRGB(70, 70, 70))
     }):Play()
-
     if not state then
         for _, v in ipairs(self.Connections) do pcall(function() v:Disconnect() end) end
         table.clear(self.Connections)
     end
-
     if not multiple and mapi then mapi:UpdateTextGUI() end
     self:UpdateBindState()
     if self.Callback then task.spawn(self.Callback, self.Enabled) end
 end
-
 function Module:Toggle(multiple)
     self:SetState(not self.Enabled, multiple)
 end
-
 function Module:ToggleOptions()
     self.OptionsExpanded = not self.OptionsExpanded
     self.OptionsFrame.Visible = true
@@ -587,7 +509,6 @@ function Module:ToggleOptions()
         end)
     end
 end
-
 function Module:_refreshOptionsHeight()
     if self.OptionsExpanded then
         task.defer(function()
@@ -597,13 +518,11 @@ function Module:_refreshOptionsHeight()
         end)
     end
 end
-
 function Module:SetColorDot(color3)
     if self.ColorDot then
         self.ColorDot.BackgroundColor3 = color3
     end
 end
-
 function Module:Color(hue, sat, val, rainbowcheck)
     local mapi    = self.mainapi or (shared.vape and shared.vape.mainapi)
     local rainbow = rainbowcheck and mapi and mapi.GUIColor and mapi.GUIColor.Rainbow and mapi.RainbowMode and mapi.RainbowMode.Value ~= "Retro"
@@ -643,7 +562,6 @@ function Module:Color(hue, sat, val, rainbowcheck)
         if opt.Color then opt:Color(hue, sat, val, rainbowcheck) end
     end
 end
-
 task.spawn(function()
     local comps = components or (shared.vape and shared.vape.Components)
     if comps then
@@ -658,5 +576,4 @@ task.spawn(function()
         end
     end
 end)
-
 return Module

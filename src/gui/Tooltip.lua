@@ -1,6 +1,4 @@
--- src/gui/Tooltip.lua
-
-local UserInputService = game:GetService("UserInputService")
+﻿local UserInputService = game:GetService("UserInputService")
 local Tooltip = {}
 function Tooltip.create(ScreenGui)
     local VapeTooltip = Instance.new("Frame")
