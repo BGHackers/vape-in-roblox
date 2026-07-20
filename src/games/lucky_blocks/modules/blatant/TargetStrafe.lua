@@ -120,40 +120,41 @@ local function findClosestTarget(rangeLimit)
     return closestTarget
 end
 
--- ビジュアル（足元の白い輪 ＋ 自分と繋ぐ白いビーム）の作成・更新
+-- ビジュアル（自分中心の白い輪 ＋ 相手と繋ぐ白いビーム）の作成・更新
 local function updateVisuals(targetChar)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
 
-    -- ビジュアルが無効、またはターゲットや自分が無効な場合は非表示にする
-    if not TargetStrafe.Settings.Visuals or not targetChar or not targetChar:FindFirstChild("HumanoidRootPart") or not myRoot then
+    -- ビジュアルが無効、または自分自身・ターゲットが無効な場合は非表示にする
+    if not TargetStrafe.Settings.Visuals or not myRoot or not targetChar or not targetChar:FindFirstChild("HumanoidRootPart") then
         if visualRing then visualRing.Visible = false end
         if visualBeam then visualBeam.Enabled = false end
         return
     end
 
     local targetRoot = targetChar.HumanoidRootPart
-    local themeColor = Color3.fromRGB(255, 255, 255) -- 白（動画のスタイルに合わせる）
+    local themeColor = Color3.fromRGB(255, 255, 255) -- 白色
 
-    -- 1. ターゲットの足元の白い平らな円 (CylinderHandleAdornment)
+    -- 1. 自分自身（Player）の周りの白いサークル (CylinderHandleAdornment)
     if not visualRing or visualRing.Parent == nil then
         visualRing = Instance.new("CylinderHandleAdornment")
-        visualRing.Name = "StrafeVisualRing"
-        visualRing.Height = 0.01 -- 極限まで薄くして地面に平らに見せる
+        visualRing.Name = "StrafePlayerRing"
+        visualRing.Height = 0.02 -- 薄く平らにして軌道のように見せる
         visualRing.Color3 = themeColor
         visualRing.AlwaysOnTop = true -- 壁越しでも表示
         visualRing.ZIndex = 5
-        visualRing.Transparency = 0.8 -- 動画のような薄い半透明
+        visualRing.Transparency = 0.75 -- 薄い半透明
         visualRing.Parent = workspace:WaitForChild("Terrain")
     end
 
-    visualRing.Adornee = targetRoot
-    visualRing.Radius = TargetStrafe.Settings.DistanceValue
-    -- ターゲットの足元に位置合わせし、Cylinderを水平にするために回転
-    visualRing.CFrame = CFrame.new(0, -2, 0) * CFrame.Angles(math.rad(90), 0, 0)
+    visualRing.Adornee = myRoot -- ★アドアニーをターゲットではなく「自分（myRoot）」に変更
+    visualRing.Radius = 3 -- ★自分の周りを一回り囲むサークルの半径（お好みで調整可能です）
+    
+    -- 自分の腰〜足元あたりの高さに合わせ、水平に回転
+    visualRing.CFrame = CFrame.new(0, -1, 0) * CFrame.Angles(math.rad(90), 0, 0)
     visualRing.Visible = true
 
-    -- 2. 自分と相手を繋ぐ光る白いビーム (Beam)
+    -- 2. 自分と相手を繋ぐ白いビーム (Beam)
     -- 自分側のアタッチメント作成
     if not myAttachment or myAttachment.Parent ~= myRoot then
         if myAttachment then myAttachment:Destroy() end
@@ -162,7 +163,7 @@ local function updateVisuals(targetChar)
         myAttachment.Parent = myRoot
     end
 
-    -- ターゲット側のアタッチメント作成
+    -- 相手（ターゲット）側のアタッチメント作成
     if not targetAttachment or targetAttachment.Parent ~= targetRoot then
         if targetAttachment then targetAttachment:Destroy() end
         targetAttachment = Instance.new("Attachment")
@@ -170,15 +171,15 @@ local function updateVisuals(targetChar)
         targetAttachment.Parent = targetRoot
     end
 
-    -- ビーム本体の作成・更新
+    -- ビームの更新
     if not visualBeam or visualBeam.Parent == nil then
         visualBeam = Instance.new("Beam")
         visualBeam.Name = "StrafeVisualBeam"
         visualBeam.Color = ColorSequence.new(themeColor)
-        visualBeam.LightEmission = 1 -- ネオンのように発光させる
+        visualBeam.LightEmission = 1 -- 発光
         visualBeam.LightInfluence = 0
-        visualBeam.Width0 = 0.08 -- 開始点の太さ（動画のように細く綺麗に）
-        visualBeam.Width1 = 0.08 -- 終了点の太さ
+        visualBeam.Width0 = 0.08 -- ビームの太さ
+        visualBeam.Width1 = 0.08
         visualBeam.TextureSpeed = 0
         visualBeam.FaceCamera = true
         visualBeam.Parent = workspace:WaitForChild("Terrain")
@@ -239,7 +240,7 @@ function TargetStrafe.Init(moduleObj)
         Default = TargetStrafe.Settings.AutoJump,
         Function = function(state) TargetStrafe.Settings.AutoJump = state end
     })
-    -- ビジュアル表示のON/OFFトグルを追加
+    -- ビジュアル表示のON/OFFトグル
     UI.Visuals = moduleObj:CreateToggle({
         Name = "Show Visuals",
         Default = TargetStrafe.Settings.Visuals,
@@ -263,7 +264,7 @@ local function onHeartbeat(dt)
     end
 
     if not myRoot or not humanoid or humanoid:GetState() == Enum.HumanoidStateType.Dead then
-        updateVisuals(nil) -- ビジュアルをオフにする
+        updateVisuals(nil) -- 死亡時はビジュアルをオフにする
         return
     end
 
@@ -297,7 +298,7 @@ local function onHeartbeat(dt)
         local myPos, targetPos = myRoot.Position, targetRoot.Position
         local targetName = currentTarget.Name
 
-        -- ビジュアルを更新（白いサークルと白いレーザー）
+        -- ターゲットを追従中、自分の周りの白い軌道とビームを更新
         updateVisuals(currentTarget)
 
         -- ターゲット変更時の処理
@@ -351,7 +352,7 @@ local function onHeartbeat(dt)
             humanoid.Jump = true
         end
     else
-        updateVisuals(nil) -- ターゲットがいない場合はビジュアルをオフ
+        updateVisuals(nil) -- ターゲットを見失ったときはビジュアルをオフ
         if lastTargetName ~= nil then
             print("[TargetStrafe Debug] Lost target.")
             lastTargetName = nil
@@ -373,7 +374,7 @@ function TargetStrafe.Callback(enabled)
             connection = nil 
             print("[TargetStrafe Debug] Heartbeat event disconnected.")
         end
-        clearVisuals() -- 無効化時はビジュアルを完全に削除
+        clearVisuals() -- 無効化時は綺麗に削除
     end
 end
 
