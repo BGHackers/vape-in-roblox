@@ -37,6 +37,7 @@ local lastHeartbeatCheck = 0
 local lastSafeCFrame = nil -- 安全な座標を保存する変数
 
 -- ビジュアル用のオブジェクト変数
+local visualHighlight = nil
 local visualRing = nil
 local myAttachment = nil
 local targetAttachment = nil
@@ -120,42 +121,59 @@ local function findClosestTarget(rangeLimit)
     return closestTarget
 end
 
--- ビジュアル（自分中心の白い輪 ＋ 相手と繋ぐ白いビーム）の作成・更新
+-- ビジュアル（SF調ネオンカラー ＆ スマートターゲットロックオン）の作成・更新
 local function updateVisuals(targetChar)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
 
     -- ビジュアルが無効、または自分自身・ターゲットが無効な場合は非表示にする
     if not TargetStrafe.Settings.Visuals or not myRoot or not targetChar or not targetChar:FindFirstChild("HumanoidRootPart") then
+        if visualHighlight then visualHighlight.Enabled = false end
         if visualRing then visualRing.Visible = false end
         if visualBeam then visualBeam.Enabled = false end
         return
     end
 
     local targetRoot = targetChar.HumanoidRootPart
-    local themeColor = Color3.fromRGB(255, 255, 255) -- 白色
+    
+    -- 【カラー設定】サイバーパンクを意識したネオンカラー
+    local colorSelf = Color3.fromRGB(0, 255, 255)   -- 自分側：ネオンシアン
+    local colorTarget = Color3.fromRGB(255, 0, 127) -- 相手側：ネオンマゼンタ
 
-    -- 1. 自分自身（Player）の周りの白いサークル (CylinderHandleAdornment)
+    -- 1. ターゲットの洗練されたハイライト（スマートな輪郭発光）
+    if not visualHighlight or visualHighlight.Parent == nil then
+        visualHighlight = Instance.new("Highlight")
+        visualHighlight.Name = "StrafeTargetHighlight"
+        visualHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        visualHighlight.FillColor = colorTarget
+        visualHighlight.FillOpacity = 0.15 -- ほんのり中身を色付ける
+        visualHighlight.OutlineColor = colorTarget
+        visualHighlight.OutlineOpacity = 0.9 -- 輪郭をクッキリさせる
+        visualHighlight.Parent = workspace:WaitForChild("Terrain")
+    end
+    visualHighlight.Adornee = targetChar
+    visualHighlight.Enabled = true
+
+    -- 2. ターゲットの足元を補足する、回転するネオンロックオンサークル
     if not visualRing or visualRing.Parent == nil then
         visualRing = Instance.new("CylinderHandleAdornment")
-        visualRing.Name = "StrafePlayerRing"
-        visualRing.Height = 0.02 -- 薄く平らにして軌道のように見せる
-        visualRing.Color3 = themeColor
-        visualRing.AlwaysOnTop = true -- 壁越しでも表示
+        visualRing.Name = "StrafeTargetRing"
+        visualRing.Height = 0.01 -- 極限まで薄くしてスマートなラインに見せる
+        visualRing.Color3 = colorTarget
+        visualRing.AlwaysOnTop = true -- 壁越しでも綺麗に表示
         visualRing.ZIndex = 5
-        visualRing.Transparency = 0.75 -- 薄い半透明
+        visualRing.Transparency = 0.5
         visualRing.Parent = workspace:WaitForChild("Terrain")
     end
 
-    visualRing.Adornee = myRoot -- ★アドアニーをターゲットではなく「自分（myRoot）」に変更
-    visualRing.Radius = 3 -- ★自分の周りを一回り囲むサークルの半径（お好みで調整可能です）
-    
-    -- 自分の腰〜足元あたりの高さに合わせ、水平に回転
-    visualRing.CFrame = CFrame.new(0, -1, 0) * CFrame.Angles(math.rad(90), 0, 0)
+    visualRing.Adornee = targetRoot
+    visualRing.Radius = TargetStrafe.Settings.DistanceValue -- 自分が回り込む軌道距離に合わせる
+    -- ターゲットの足元（少しだけ浮かせた位置）に水平に配置
+    visualRing.CFrame = CFrame.new(0, -2.8, 0) * CFrame.Angles(math.rad(90), 0, 0)
     visualRing.Visible = true
 
-    -- 2. 自分と相手を繋ぐ白いビーム (Beam)
-    -- 自分側のアタッチメント作成
+    -- 3. 自分と相手を結ぶ、SF調グラデーションレーザー
+    -- 自分側のアタッチメント
     if not myAttachment or myAttachment.Parent ~= myRoot then
         if myAttachment then myAttachment:Destroy() end
         myAttachment = Instance.new("Attachment")
@@ -163,7 +181,7 @@ local function updateVisuals(targetChar)
         myAttachment.Parent = myRoot
     end
 
-    -- 相手（ターゲット）側のアタッチメント作成
+    -- 相手（ターゲット）側のアタッチメント
     if not targetAttachment or targetAttachment.Parent ~= targetRoot then
         if targetAttachment then targetAttachment:Destroy() end
         targetAttachment = Instance.new("Attachment")
@@ -175,12 +193,22 @@ local function updateVisuals(targetChar)
     if not visualBeam or visualBeam.Parent == nil then
         visualBeam = Instance.new("Beam")
         visualBeam.Name = "StrafeVisualBeam"
-        visualBeam.Color = ColorSequence.new(themeColor)
+        -- 自分から相手へとグラデーションするネオンビーム
+        visualBeam.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, colorSelf),
+            ColorSequenceKeypoint.new(1, colorTarget)
+        })
+        -- 端を少しフェードアウトさせて空間に馴染ませる
+        visualBeam.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(0.15, 0),
+            NumberSequenceKeypoint.new(0.85, 0),
+            NumberSequenceKeypoint.new(1, 0.4)
+        })
         visualBeam.LightEmission = 1 -- 発光
         visualBeam.LightInfluence = 0
-        visualBeam.Width0 = 0.08 -- ビームの太さ
-        visualBeam.Width1 = 0.08
-        visualBeam.TextureSpeed = 0
+        visualBeam.Width0 = 0.03 -- シャープな極細レーザー
+        visualBeam.Width1 = 0.03
         visualBeam.FaceCamera = true
         visualBeam.Parent = workspace:WaitForChild("Terrain")
     end
@@ -192,6 +220,10 @@ end
 
 -- ビジュアルの完全消去
 local function clearVisuals()
+    if visualHighlight then
+        visualHighlight:Destroy()
+        visualHighlight = nil
+    end
     if visualRing then
         visualRing:Destroy()
         visualRing = nil
@@ -298,7 +330,7 @@ local function onHeartbeat(dt)
         local myPos, targetPos = myRoot.Position, targetRoot.Position
         local targetName = currentTarget.Name
 
-        -- ターゲットを追従中、自分の周りの白い軌道とビームを更新
+        -- ターゲットを追従中、ビジュアルを更新
         updateVisuals(currentTarget)
 
         -- ターゲット変更時の処理
