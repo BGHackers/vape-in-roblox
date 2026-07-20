@@ -1,12 +1,14 @@
 ﻿local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local lplr = Players.LocalPlayer
+
 local UI = {}
 local TargetStrafe = {
     Name = "TargetStrafe",
     Description = "Automatically circles around your target opponent with void and wall prevention.",
     TargetGame = "lucky_blocks"
 }
+
 TargetStrafe.Settings = {
     DistanceValue = 6,
     SpeedValue = 12,
@@ -14,6 +16,7 @@ TargetStrafe.Settings = {
     AutoJump = true,
     Visuals = true,
 }
+
 local connection, currentTarget = nil, nil
 local theta, direction, lastDirectionSwitchTime = 0, 1, 0
 local lastTargetName = nil
@@ -24,6 +27,7 @@ local visualRing = nil
 local myAttachment = nil
 local targetAttachment = nil
 local visualBeam = nil
+
 local function isInsidePart(part, pos)
     if not part then return false end
     local localPos = part.CFrame:PointToObjectSpace(pos)
@@ -32,6 +36,7 @@ local function isInsidePart(part, pos)
        and math.abs(localPos.Y) < size.Y / 2
        and math.abs(localPos.Z) < size.Z / 2
 end
+
 local function checkObstacles(myPos, dir, char)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
@@ -62,6 +67,7 @@ local function checkObstacles(myPos, dir, char)
     end
     return false, nil
 end
+
 local function findClosestTarget(rangeLimit)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter.PrimaryPart
@@ -84,6 +90,7 @@ local function findClosestTarget(rangeLimit)
     end
     return closestTarget
 end
+
 local function updateVisuals(targetChar)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
@@ -158,6 +165,7 @@ local function updateVisuals(targetChar)
     visualBeam.Attachment1 = targetAttachment
     visualBeam.Enabled = true
 end
+
 local function clearVisuals()
     if visualHighlight then
         visualHighlight:Destroy()
@@ -180,40 +188,53 @@ local function clearVisuals()
         targetAttachment = nil
     end
 end
+
+-- 🌟 【ここが本番】Sliderの実装は外にあるので、moduleObjから呼び出すだけになります
 function TargetStrafe.Init(moduleObj)
     print("[TargetStrafe Debug] Init called (UI creation)")
     UI = UI or {}
+
+    -- スライダーの引数として、テーブル（設定）を渡す形に対応
     UI.Distance = moduleObj:CreateSlider({
         Name = "Strafe Distance",
-        Min = 2, Max = 20,
+        Min = 2,
+        Max = 20,
         Default = TargetStrafe.Settings.DistanceValue,
-        Suffix = function(val) return " studs" end,
+        Suffix = "studs",
         Function = function(val) TargetStrafe.Settings.DistanceValue = val end
     })
+
     UI.Speed = moduleObj:CreateSlider({
         Name = "Strafe Speed",
-        Min = 1, Max = 30,
+        Min = 1,
+        Max = 30,
         Default = TargetStrafe.Settings.SpeedValue,
         Function = function(val) TargetStrafe.Settings.SpeedValue = val end
     })
+
     UI.SearchRange = moduleObj:CreateSlider({
         Name = "Search Range",
-        Min = 10, Max = 150,
+        Min = 10,
+        Max = 150,
         Default = TargetStrafe.Settings.SearchRangeValue,
-        Suffix = function(val) return " studs" end,
+        Suffix = "studs",
         Function = function(val) TargetStrafe.Settings.SearchRangeValue = val end
     })
+
+    -- Toggleはライブラリ標準のものを想定
     UI.AutoJump = moduleObj:CreateToggle({
         Name = "AutoJump (BHop)",
         Default = TargetStrafe.Settings.AutoJump,
         Function = function(state) TargetStrafe.Settings.AutoJump = state end
     })
+
     UI.Visuals = moduleObj:CreateToggle({
         Name = "Show Visuals",
         Default = TargetStrafe.Settings.Visuals,
         Function = function(state) TargetStrafe.Settings.Visuals = state end
     })
 end
+
 local function onHeartbeat(dt)
     local myCharacter = lplr.Character
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
@@ -259,6 +280,11 @@ local function onHeartbeat(dt)
             local relative = myPos - targetPos
             theta = math.atan2(relative.Z, relative.X)
             print("[TargetStrafe Debug] Initialized start theta to: " .. tostring(theta))
+            
+            -- ロックオン通知（外部の通知システムがある場合はここで呼び出す）
+            if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
+                shared.vape.mainapi:CreateNotification("Target Lock", "Locked onto " .. targetName, 3, "info")
+            end
         end
         theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt) % (math.pi * 2)
         local desiredDistance = TargetStrafe.Settings.DistanceValue
@@ -273,6 +299,11 @@ local function onHeartbeat(dt)
             direction = -direction 
             lastDirectionSwitchTime = os.clock()
             print("[TargetStrafe Debug] " .. obstacleType .. " detected! Switched direction to: " .. direction)
+            
+            if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
+                shared.vape.mainapi:CreateNotification("Avoidance", obstacleType .. " detected! Reversing orbit.", 2.5, "warning")
+            end
+            
             theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt * 3) % (math.pi * 2)
             nextPos = Vector3.new(
                 targetPos.X + math.cos(theta) * desiredDistance,
@@ -291,17 +322,27 @@ local function onHeartbeat(dt)
         updateVisuals(nil)
         if lastTargetName ~= nil then
             print("[TargetStrafe Debug] Lost target.")
+            
+            if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
+                shared.vape.mainapi:CreateNotification("Target Lock", "Lost target: " .. lastTargetName, 2.5, "warning")
+            end
+            
             lastTargetName = nil
             myRoot.AssemblyLinearVelocity = Vector3.new(0, myRoot.AssemblyLinearVelocity.Y, 0)
         end
     end
 end
+
 function TargetStrafe.Callback(enabled)
     print("[TargetStrafe Debug] Callback toggled. Enabled state: " .. tostring(enabled))
     if enabled then
         theta, direction, lastDirectionSwitchTime, currentTarget, lastTargetName, lastSafeCFrame = 0, 1, 0, nil, nil, nil
         connection = RunService.Heartbeat:Connect(onHeartbeat)
         print("[TargetStrafe Debug] Heartbeat event connected.")
+        
+        if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
+            shared.vape.mainapi:CreateNotification("TargetStrafe", "Module enabled successfully", 3, "info")
+        end
     else
         if connection then 
             connection:Disconnect() 
@@ -309,6 +350,11 @@ function TargetStrafe.Callback(enabled)
             print("[TargetStrafe Debug] Heartbeat event disconnected.")
         end
         clearVisuals()
+        
+        if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
+            shared.vape.mainapi:CreateNotification("TargetStrafe", "Module disabled successfully", 3, "info")
+        end
     end
 end
+
 return TargetStrafe
