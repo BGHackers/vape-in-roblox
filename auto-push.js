@@ -49,12 +49,20 @@ chokidar.watch('.', {
                 return; // 差分がなければ、ここで安全に送信処理を中止します
             }
 
-            console.log('\n📤 GitHubへ送信中...');
+            console.log('\n💾 差分をローカルにコミット中...');
             execSync('git commit -m "Sync source files and configs"', { stdio: 'inherit' });
+
+            // 🌟 改善：プッシュ前にリモートの変更を安全に引き込む
+            console.log('🔄 リモート(GitHub)の変更を取り込んでいます (git pull --rebase)...');
+            execSync('git pull --rebase origin main', { stdio: 'inherit' });
+
+            console.log('📤 GitHubへ送信中 (git push)...');
             execSync('git push origin main', { stdio: 'inherit' });
             console.log('✅ 送信完了！最新のコードが即座に反映されました。\n');
         } catch (error) {
-            console.error('\n❌ 送信失敗（コンフリクトまたはネット接続を確認してください）\n');
+            console.error('\n❌ 送信失敗（競合またはロックエラーが発生しました）');
+            console.error('💡 【対策1】ターミナルで手動で「git pull --rebase origin main」を実行し、競合（コンフリクト）を解決してください。');
+            console.error('💡 【対策2】VS Code等を使用している場合、設定から「Git: Autofetch」を「off」にすることをお勧めします（ロック競合を防ぐため）。\n');
         }
-    }, SYNC_DELAY); // 🌟 コメント記号を「//」に修正しました
+    }, SYNC_DELAY);
 });
