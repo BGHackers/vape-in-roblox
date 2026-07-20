@@ -2,6 +2,39 @@
 local Players = game:GetService("Players")
 local lplr = Players.LocalPlayer
 
+-- ========================================================
+-- 🌟 あらゆるVapeの通知機能に対応した安全な自動検知関数
+-- ========================================================
+local function vapeNotify(title, text, duration, notifType)
+    -- ①標準的なGuiLibrary["CreateNotification"]
+    local GuiLibrary = shared.GuiLibrary or _G.GuiLibrary
+    if GuiLibrary and typeof(GuiLibrary.CreateNotification) == "function" then
+        pcall(function()
+            -- GuiLibrary:CreateNotification ではなくドットで呼び出す
+            GuiLibrary.CreateNotification(title, text, duration, notifType)
+        end)
+        return
+    end
+    
+    -- ②メインapiのvape:CreateNotification
+    local vape = shared.vape
+    if vape and typeof(vape.CreateNotification) == "function" then
+        pcall(function()
+            vape:CreateNotification(title, text, duration, notifType)
+        end)
+        return
+    end
+    if vape and vape.mainapi and typeof(vape.mainapi.CreateNotification) == "function" then
+        pcall(function()
+            vape.mainapi:CreateNotification(title, text, duration, notifType)
+        end)
+        return
+    end
+end
+
+-- ========================================================
+-- 【TargetStrafe（メイン）モジュール部】
+-- ========================================================
 local UI = {}
 local TargetStrafe = {
     Name = "TargetStrafe",
@@ -189,45 +222,34 @@ local function clearVisuals()
     end
 end
 
--- 🌟 【ここが本番】Sliderの実装は外にあるので、moduleObjから呼び出すだけになります
 function TargetStrafe.Init(moduleObj)
     print("[TargetStrafe Debug] Init called (UI creation)")
     UI = UI or {}
-
-    -- スライダーの引数として、テーブル（設定）を渡す形に対応
     UI.Distance = moduleObj:CreateSlider({
         Name = "Strafe Distance",
-        Min = 2,
-        Max = 20,
+        Min = 2, Max = 20,
         Default = TargetStrafe.Settings.DistanceValue,
-        Suffix = "studs",
+        Suffix = function(val) return " studs" end,
         Function = function(val) TargetStrafe.Settings.DistanceValue = val end
     })
-
     UI.Speed = moduleObj:CreateSlider({
         Name = "Strafe Speed",
-        Min = 1,
-        Max = 30,
+        Min = 1, Max = 30,
         Default = TargetStrafe.Settings.SpeedValue,
         Function = function(val) TargetStrafe.Settings.SpeedValue = val end
     })
-
     UI.SearchRange = moduleObj:CreateSlider({
         Name = "Search Range",
-        Min = 10,
-        Max = 150,
+        Min = 10, Max = 150,
         Default = TargetStrafe.Settings.SearchRangeValue,
-        Suffix = "studs",
+        Suffix = function(val) return " studs" end,
         Function = function(val) TargetStrafe.Settings.SearchRangeValue = val end
     })
-
-    -- Toggleはライブラリ標準のものを想定
     UI.AutoJump = moduleObj:CreateToggle({
         Name = "AutoJump (BHop)",
         Default = TargetStrafe.Settings.AutoJump,
         Function = function(state) TargetStrafe.Settings.AutoJump = state end
     })
-
     UI.Visuals = moduleObj:CreateToggle({
         Name = "Show Visuals",
         Default = TargetStrafe.Settings.Visuals,
@@ -274,6 +296,7 @@ local function onHeartbeat(dt)
         local myPos, targetPos = myRoot.Position, targetRoot.Position
         local targetName = currentTarget.Name
         updateVisuals(currentTarget)
+        
         if lastTargetName ~= targetName then
             print("[TargetStrafe Debug] Target Changed: " .. targetName .. " | Distance: " .. math.round((myPos - targetPos).Magnitude) .. " studs")
             lastTargetName = targetName
@@ -281,11 +304,10 @@ local function onHeartbeat(dt)
             theta = math.atan2(relative.Z, relative.X)
             print("[TargetStrafe Debug] Initialized start theta to: " .. tostring(theta))
             
-            -- ロックオン通知（外部の通知システムがある場合はここで呼び出す）
-            if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
-                shared.vape.mainapi:CreateNotification("Target Lock", "Locked onto " .. targetName, 3, "info")
-            end
+            -- 安全な通知機能の使用
+            vapeNotify("Target Lock", "Locked onto " .. targetName, 3, "info")
         end
+        
         theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt) % (math.pi * 2)
         local desiredDistance = TargetStrafe.Settings.DistanceValue
         local nextPos = Vector3.new(
@@ -295,14 +317,13 @@ local function onHeartbeat(dt)
         )
         local moveDirection = (nextPos - myPos).Unit
         local hasObstacle, obstacleType = checkObstacles(myPos, moveDirection, myCharacter)
+        
         if hasObstacle and (os.clock() - lastDirectionSwitchTime > 0.5) then
             direction = -direction 
             lastDirectionSwitchTime = os.clock()
             print("[TargetStrafe Debug] " .. obstacleType .. " detected! Switched direction to: " .. direction)
             
-            if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
-                shared.vape.mainapi:CreateNotification("Avoidance", obstacleType .. " detected! Reversing orbit.", 2.5, "warning")
-            end
+            vapeNotify("Avoidance", obstacleType .. " detected! Reversing orbit.", 2.5, "warning")
             
             theta = (theta + direction * (TargetStrafe.Settings.SpeedValue / TargetStrafe.Settings.DistanceValue) * dt * 3) % (math.pi * 2)
             nextPos = Vector3.new(
@@ -312,6 +333,7 @@ local function onHeartbeat(dt)
             )
             moveDirection = (nextPos - myPos).Unit
         end
+        
         local targetVelocity = moveDirection * TargetStrafe.Settings.SpeedValue
         myRoot.AssemblyLinearVelocity = Vector3.new(targetVelocity.X, myRoot.AssemblyLinearVelocity.Y, targetVelocity.Z)
         myRoot.CFrame = CFrame.lookAt(nextPos, Vector3.new(targetPos.X, nextPos.Y, targetPos.Z))
@@ -320,13 +342,10 @@ local function onHeartbeat(dt)
         end
     else
         updateVisuals(nil)
+        
         if lastTargetName ~= nil then
             print("[TargetStrafe Debug] Lost target.")
-            
-            if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
-                shared.vape.mainapi:CreateNotification("Target Lock", "Lost target: " .. lastTargetName, 2.5, "warning")
-            end
-            
+            vapeNotify("Target Lock", "Lost target: " .. lastTargetName, 2.5, "warning")
             lastTargetName = nil
             myRoot.AssemblyLinearVelocity = Vector3.new(0, myRoot.AssemblyLinearVelocity.Y, 0)
         end
@@ -340,9 +359,7 @@ function TargetStrafe.Callback(enabled)
         connection = RunService.Heartbeat:Connect(onHeartbeat)
         print("[TargetStrafe Debug] Heartbeat event connected.")
         
-        if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
-            shared.vape.mainapi:CreateNotification("TargetStrafe", "Module enabled successfully", 3, "info")
-        end
+        vapeNotify("TargetStrafe", "Module enabled successfully", 3, "info")
     else
         if connection then 
             connection:Disconnect() 
@@ -351,9 +368,7 @@ function TargetStrafe.Callback(enabled)
         end
         clearVisuals()
         
-        if shared.vape and shared.vape.mainapi and shared.vape.mainapi.CreateNotification then
-            shared.vape.mainapi:CreateNotification("TargetStrafe", "Module disabled successfully", 3, "info")
-        end
+        vapeNotify("TargetStrafe", "Module disabled successfully", 3, "info")
     end
 end
 
