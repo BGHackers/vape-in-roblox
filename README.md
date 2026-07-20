@@ -40,41 +40,9 @@ The project is modularly structured as follows:
 ## How to Run (Loader Bootstrap)
 
 Execute the following loader bootstrap script inside your execution environment.
-Important: Please change YOUR_USERNAME and YOUR_REPO_NAME to your actual GitHub account and repository names before running.
 
 ```lua
-local HttpService = game:GetService("HttpService")
-local BaseUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO_NAME/main/src/"
-
-local moduleCache = {}
-
-local function httpRequire(path)
-    if moduleCache[path] then return moduleCache[path] end
-    local fileUrl = BaseUrl .. path
-    if not string.match(fileUrl, "%.lua$") then fileUrl = fileUrl .. ".lua" end
-
-    local success, response = pcall(function() return game:HttpGet(fileUrl) end)
-    if not success or not response then error("Failed to load: " .. path) end
-
-    local chunk, err = loadstring(response)
-    if not chunk then error("Compile error (" .. path .. "): " .. tostring(err)) end
-
-    local result = chunk()
-    moduleCache[path] = result
-    return result
-end
-
--- Fetch the module index for "game1"
-local base = httpRequire("games/game1/base")
-
--- Dynamically load and initiate modules for each category
-for category, modules in pairs(base) do
-    for _, modulePath in ipairs(modules) do
-        task.spawn(function()
-            pcall(function() httpRequire(modulePath) end)
-        end)
-    end
-end
+loadstring(game:HttpGet("https://raw.githubusercontent.com/BGHackers/vape-in-roblox/main/loader.lua?t=" .. tostring(os.time())))()
 ```
 
 ## Developer Setup & Workflow
@@ -142,41 +110,9 @@ Luau (Roblox Lua) 環境向けの、非同期・動的モジュールロード (
 
 ## 実行方法 (How to Run / Loader Bootstrap)
 ゲーム内またはエグゼキューター等から、以下のローダースクリプトを実行してロードします。
-重要: 実行前に、スクリプト内の YOUR_USERNAME と YOUR_REPO_NAME をご自身のGitHubのアカウント名およびリポジトリ名に書き換えてください。
 
 ```lua
-local HttpService = game:GetService("HttpService")
-local BaseUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO_NAME/main/src/"
-
-local moduleCache = {}
-
-local function httpRequire(path)
-    if moduleCache[path] then return moduleCache[path] end
-    local fileUrl = BaseUrl .. path
-    if not string.match(fileUrl, "%.lua$") then fileUrl = fileUrl .. ".lua" end
-
-    local success, response = pcall(function() return game:HttpGet(fileUrl) end)
-    if not success or not response then error("Failed to load: " .. path) end
-
-    local chunk, err = loadstring(response)
-    if not chunk then error("Compile error (" .. path .. "): " .. tostring(err)) end
-
-    local result = chunk()
-    moduleCache[path] = result
-    return result
-end
-
--- ゲーム1用のモジュールを読み込み
-local base = httpRequire("games/game1/base")
-
--- 各カテゴリごとに登録されているモジュールを1つずつ安全にロード
-for category, modules in pairs(base) do
-    for _, modulePath in ipairs(modules) do
-        task.spawn(function()
-            pcall(function() httpRequire(modulePath) end)
-        end)
-    end
-end
+loadstring(game:HttpGet("https://raw.githubusercontent.com/BGHackers/vape-in-roblox/main/loader.lua?t=" .. tostring(os.time())))()
 ```
 
 ## 開発環境セットアップ (Developer Setup & Workflow)
