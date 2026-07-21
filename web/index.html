@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vape — Luau Runtime Framework</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root{
+    --bg:#0a0806;
+    --bg2:#131009;
+    --line:#2a2115;
+    --line-soft:#1b160e;
+    --ink:#f2e9d8;
+    --sub:#9c9080;
+    --amber:#ffb000;
+    --amber-dim:#7a5a1a;
+    --amber-glow:rgba(255,176,0,.12);
+  }
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans',sans-serif; -webkit-font-smoothing:antialiased;}
+  .display{font-family:'Unbounded',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .lang-ja [data-lang="en"]{display:none;}
+  .lang-en [data-lang="ja"]{display:none;}
+  ::selection{background:var(--amber); color:#0a0806;}
+  a:focus-visible, button:focus-visible{outline:2px solid var(--amber); outline-offset:3px;}
+
+  .scanlines::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:repeating-linear-gradient(rgba(0,0,0,0) 0 2px, rgba(255,176,0,.015) 2px 3px);
+  }
+  .grain::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .glow{background:radial-gradient(700px circle at 15% 0%, var(--amber-glow), transparent 60%);}
+  .card{background:var(--bg2); border:1px solid var(--line-soft); transition:border-color .2s ease, transform .2s ease;}
+  .card:hover{border-color:var(--amber-dim); transform:translateY(-2px);}
+  .amber{color:var(--amber);}
+
+  .caret{display:inline-block; width:.55ch; background:var(--amber); margin-left:2px; animation:blink 1s steps(1) infinite; height:1em; vertical-align:-0.15em;}
+  @keyframes blink{50%{opacity:0;}}
+
+  #boot-log{white-space:pre-wrap;}
+  .boot-line{opacity:0; animation:reveal .05s linear forwards;}
+
+  @media (prefers-reduced-motion: reduce){
+    .caret{animation:none;}
+    .boot-line{opacity:1; animation:none;}
+  }
+  @keyframes reveal{to{opacity:1;}}
+</style>
+</head>
+<body class="lang-en scanlines grain">
+
+  <!-- NAV -->
+  <header class="fixed top-0 inset-x-0 z-50 border-b border-[var(--line-soft)] bg-[var(--bg)]/90 backdrop-blur-md">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2 mono text-sm tracking-widest">
+        <span class="w-1.5 h-1.5 rounded-full bg-[var(--amber)] inline-block animate-pulse"></span>
+        <span>VAPE</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-8 text-sm text-[var(--sub)]">
+        <a href="#games" class="hover:text-[var(--ink)] transition">
+          <span data-lang="en">Games</span><span data-lang="ja">対応ゲーム</span>
+        </a>
+        <a href="#history" class="hover:text-[var(--ink)] transition">
+          <span data-lang="en">History</span><span data-lang="ja">経歴</span>
+        </a>
+        <a href="#core" class="hover:text-[var(--ink)] transition">
+          <span data-lang="en">Core</span><span data-lang="ja">コア機能</span>
+        </a>
+        <a href="#stack" class="hover:text-[var(--ink)] transition">
+          <span data-lang="en">Workflow</span><span data-lang="ja">開発フロー</span>
+        </a>
+        <a href="#profile" class="hover:text-[var(--ink)] transition">
+          <span data-lang="en">Profile</span><span data-lang="ja">プロフィール</span>
+        </a>
+      </nav>
+      <div class="flex items-center gap-3">
+        <button id="lang-toggle" class="mono text-xs border border-[var(--line)] rounded-full px-3 py-1.5 text-[var(--sub)] hover:text-[var(--ink)] hover:border-[var(--amber-dim)] transition">
+          <span id="lang-text">日本語</span>
+        </button>
+        <a href="https://github.com/BGHackers/vape-in-roblox" target="_blank" class="text-[var(--sub)] hover:text-[var(--ink)] transition">
+          <i data-lucide="github" class="w-5 h-5"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="relative pt-40 pb-32 px-6 glow overflow-hidden border-b border-[var(--line-soft)]">
+    <div class="max-w-6xl mx-auto relative z-10">
+
+      <!-- boot log signature -->
+      <div id="boot-log" class="mono text-[13px] text-[var(--amber-dim)] leading-relaxed mb-10 min-h-[6.5em]"></div>
+
+      <h1 class="display text-[16vw] md:text-[7.5rem] leading-[0.82] font-black tracking-tight mb-8">
+        vape<span class="amber">_</span>
+      </h1>
+
+      <p class="max-w-xl text-lg text-[var(--sub)] leading-relaxed mb-10">
+        <span data-lang="en">An async, module-loading runtime for Luau. Small files, fetched on demand, built to stay stable under real-world load.</span>
+        <span data-lang="ja">非同期・動的モジュールロードを採用したLuau向けランタイム。小さなファイルを必要な時だけ取得し、実行時の安定性を保つ設計。</span>
+      </p>
+
+      <div class="max-w-2xl bg-[var(--bg2)] border border-[var(--line)] rounded-lg overflow-hidden shadow-[0_0_40px_-15px_var(--amber-glow)]">
+        <div class="flex items-center justify-between px-4 py-2.5 border-b border-[var(--line-soft)] mono text-xs text-[var(--sub)]">
+          <span class="flex items-center gap-2">
+            <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+            <span data-lang="en">bootstrap.lua</span>
+            <span data-lang="ja">ブートストラップ</span>
+          </span>
+          <button id="copy-btn" class="flex items-center gap-1.5 hover:text-[var(--ink)] transition">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span id="copy-btn-text">Copy</span>
+          </button>
+        </div>
+        <pre class="mono text-sm amber px-4 py-4 overflow-x-auto whitespace-pre-wrap break-all" id="loader-code">loadstring(game:HttpGet("https://raw.githubusercontent.com/BGHackers/vape-in-roblox/main/loader.lua?t=" .. tostring(os.time())))()</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- CORE -->
+  <section id="core" class="py-28 px-6 border-b border-[var(--line-soft)]">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex items-end justify-between mb-14 gap-4">
+        <h2 class="display text-3xl md:text-4xl font-bold tracking-tight">
+          <span data-lang="en">Why it's built this way</span>
+          <span data-lang="ja">この設計になった理由</span>
+        </h2>
+        <span class="mono text-xs text-[var(--sub)]">§02</span>
+      </div>
+      <div class="grid md:grid-cols-2 gap-px bg-[var(--line-soft)] border border-[var(--line-soft)] rounded-xl overflow-hidden">
+        <div class="card p-8">
+          <i data-lucide="cpu" class="w-6 h-6 amber mb-4"></i>
+          <h3 class="font-semibold text-lg mb-2">
+            <span data-lang="en">VM limits, handled</span>
+            <span data-lang="ja">VM制限への対応</span>
+          </h3>
+          <p class="text-sm text-[var(--sub)] leading-relaxed">
+            <span data-lang="en">Works around Luau's 200-local-variable-per-scope ceiling and avoids watchdog timer crashes.</span>
+            <span data-lang="ja">Luauの「1スコープ200変数」上限を回避し、処理過多によるウォッチドッグタイマーの強制終了を防ぎます。</span>
+          </p>
+        </div>
+        <div class="card p-8">
+          <i data-lucide="refresh-cw" class="w-6 h-6 amber mb-4"></i>
+          <h3 class="font-semibold text-lg mb-2">
+            <span data-lang="en">Lazy, async loading</span>
+            <span data-lang="ja">非同期・遅延ロード</span>
+          </h3>
+          <p class="text-sm text-[var(--sub)] leading-relaxed">
+            <span data-lang="en">Modules are split into small files and pulled over HTTP only when needed — no monolithic bundle.</span>
+            <span data-lang="ja">機能ごとに小さく分割し、必要な時だけHTTPで取得。1つの巨大ファイルにはしません。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SUPPORTED GAMES -->
+  <section id="games" class="py-28 px-6 border-b border-[var(--line-soft)]">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex items-end justify-between mb-14 gap-4">
+        <h2 class="display text-3xl md:text-4xl font-bold tracking-tight">
+          <span data-lang="en">Supported experiences</span>
+          <span data-lang="ja">対応ゲーム</span>
+        </h2>
+        <span class="mono text-xs text-[var(--sub)]">§03</span>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[var(--line-soft)] border border-[var(--line-soft)] rounded-xl overflow-hidden">
+        <a href="https://www.roblox.com/share?code=37637e14526cb64390b1bf28f13955db&type=ExperienceDetails&stamp=1784618380304" target="_blank" class="card p-6 flex items-center justify-between group">
+          <span class="font-semibold">lucky_blocks</span>
+          <i data-lucide="arrow-up-right" class="w-4 h-4 text-[var(--sub)] group-hover:amber transition"></i>
+        </a>
+        <a href="https://www.roblox.com/share?code=d53bdc4d8e147a48940e4ae03a207e19&type=ExperienceDetails&stamp=1784618414869" target="_blank" class="card p-6 flex items-center justify-between group">
+          <span class="font-semibold">1_8arena</span>
+          <i data-lucide="arrow-up-right" class="w-4 h-4 text-[var(--sub)] group-hover:amber transition"></i>
+        </a>
+        <a href="https://www.roblox.com/share?code=390b4d1c6becc446a93cd822c7233974&type=ExperienceDetails&stamp=1784618589344" target="_blank" class="card p-6 flex items-center justify-between group">
+          <span class="font-semibold">bridge_duel</span>
+          <i data-lucide="arrow-up-right" class="w-4 h-4 text-[var(--sub)] group-hover:amber transition"></i>
+        </a>
+        <a href="https://www.roblox.com/share?code=f9ee7fbad43cf54d9ec860752ded5bf6&type=ExperienceDetails&stamp=1784618685158" target="_blank" class="card p-6 flex items-center justify-between group">
+          <span class="font-semibold">hoplex</span>
+          <i data-lucide="arrow-up-right" class="w-4 h-4 text-[var(--sub)] group-hover:amber transition"></i>
+        </a>
+        <a href="https://www.roblox.com/share?code=672129581234ca49b2654f17deb26305&type=ExperienceDetails&stamp=1784618987814" target="_blank" class="card p-6 flex items-center justify-between group">
+          <span class="font-semibold">pillars_of_fortune</span>
+          <i data-lucide="arrow-up-right" class="w-4 h-4 text-[var(--sub)] group-hover:amber transition"></i>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORY TIMELINE -->
+  <section id="history" class="py-28 px-6 border-b border-[var(--line-soft)]">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex items-end justify-between mb-14 gap-4">
+        <h2 class="display text-3xl md:text-4xl font-bold tracking-tight">
+          <span data-lang="en">Developer timeline</span>
+          <span data-lang="ja">開発者の歩み</span>
+        </h2>
+        <span class="mono text-xs text-[var(--sub)]">§04</span>
+      </div>
+
+      <div class="space-y-0">
+
+        <div class="grid md:grid-cols-[140px_1fr] gap-4 md:gap-10 py-8 border-t border-[var(--line-soft)]">
+          <span class="mono text-sm text-[var(--sub)]">2024.05</span>
+          <div>
+            <h3 class="font-semibold text-lg mb-1">
+              <span data-lang="en">BLOCKMANGO exploit</span>
+              <span data-lang="ja">BLOCKMANGOの脆弱性発見</span>
+            </h3>
+            <p class="text-sm text-[var(--sub)] leading-relaxed">
+              <span data-lang="en">Found a vulnerability in BLOCKMANGO, hacked it, and stood up multiple teams.</span>
+              <span data-lang="ja">BLOCKMANGOで脆弱性を発見・ハッキングし、複数のチームを作成した。</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-[140px_1fr] gap-4 md:gap-10 py-8 border-t border-[var(--line-soft)]">
+          <span class="mono text-sm text-[var(--sub)]">2025.07</span>
+          <div>
+            <h3 class="font-semibold text-lg mb-1">
+              <span data-lang="en">Renamed → BGHACKERS</span>
+              <span data-lang="ja">BGHACKERSに改名</span>
+            </h3>
+            <p class="text-sm text-[var(--sub)] leading-relaxed">
+              <span data-lang="en">Formerly "lunz_ez" — rebranded to BGHACKERS.</span>
+              <span data-lang="ja">旧名「lunz_ez」から「BGHACKERS」に変更。</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-[140px_1fr] gap-4 md:gap-10 py-8 border-t border-[var(--line-soft)]">
+          <span class="mono text-sm text-[var(--sub)]">2025.08</span>
+          <div>
+            <h3 class="font-semibold text-lg mb-1">
+              <span data-lang="en">Got into scripting</span>
+              <span data-lang="ja">スクリプト制作に興味</span>
+            </h3>
+            <p class="text-sm text-[var(--sub)] leading-relaxed">
+              <span data-lang="en">Started exploring script development.</span>
+              <span data-lang="ja">scriptの制作に興味を持ち始めた。</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-[140px_1fr] gap-4 md:gap-10 py-8 border-t border-[var(--line-soft)]">
+          <span class="mono text-sm text-[var(--sub)]">2025.09</span>
+          <div>
+            <h3 class="font-semibold text-lg mb-1">
+              <span data-lang="en">TikTok — @BGHACKERS</span>
+              <span data-lang="ja">TikTok開始</span>
+            </h3>
+            <p class="text-sm text-[var(--sub)] leading-relaxed">
+              <span data-lang="en">Username "logfeetst" — picked with no real reasoning behind it.</span>
+              <span data-lang="ja">ユーザー名は「logfeetst」。特に理由はなく適当に決めた。</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-[140px_1fr] gap-4 md:gap-10 py-8 border-t border-[var(--line-soft)]">
+          <span class="mono text-sm text-[var(--sub)]">2025.11–12</span>
+          <div>
+            <h3 class="font-semibold text-lg mb-1">
+              <span data-lang="en">Axis HUB <span class="text-[var(--sub)] font-normal">— discontinued</span></span>
+              <span data-lang="ja">Axis HUB <span class="text-[var(--sub)] font-normal">(削除)</span></span>
+            </h3>
+            <p class="text-sm text-[var(--sub)] leading-relaxed">
+              <span data-lang="en">Built Axis HUB with ftap and multi-game support. Later taken down by someone else.</span>
+              <span data-lang="ja">ftap機能・複数ゲーム対応の「Axis HUB」を制作したが、後に別の人物によって削除された。</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-[140px_1fr] gap-4 md:gap-10 py-8 border-t border-b border-[var(--line-soft)]">
+          <span class="mono text-sm amber flex items-center gap-2">
+            2026.06
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--amber)] animate-pulse"></span>
+          </span>
+          <div>
+            <h3 class="font-semibold text-lg mb-1">
+              vape <span class="text-[var(--sub)] font-normal text-sm"><span data-lang="en">— active</span><span data-lang="ja">— 開発中</span></span>
+            </h3>
+            <p class="text-sm text-[var(--sub)] leading-relaxed">
+              <span data-lang="en">Currently building vape, in active development.</span>
+              <span data-lang="ja">現在vapeを開発中、いまに至る。</span>
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- WORKFLOW -->
+  <section id="stack" class="py-28 px-6 border-b border-[var(--line-soft)]">
+    <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-14 items-start">
+      <div>
+        <span class="mono text-xs text-[var(--sub)] block mb-4">§05</span>
+        <h2 class="display text-3xl md:text-4xl font-bold tracking-tight mb-6">
+          <span data-lang="en">Sync, not build</span>
+          <span data-lang="ja">ビルドせず同期する</span>
+        </h2>
+        <p class="text-[var(--sub)] leading-relaxed mb-8">
+          <span data-lang="en">Local file changes push straight to GitHub. No bundler, no wait — save and test.</span>
+          <span data-lang="ja">ローカルの変更をそのままGitHubへ同期。bundlerのビルド待ちは不要で、保存してすぐテストできます。</span>
+        </p>
+        <div class="space-y-3 mono text-sm">
+          <div class="flex justify-between items-center bg-[var(--bg2)] border border-[var(--line)] rounded-lg px-4 py-3">
+            <span class="text-[var(--sub)]">install</span>
+            <span class="amber">npm install</span>
+          </div>
+          <div class="flex justify-between items-center bg-[var(--bg2)] border border-[var(--line)] rounded-lg px-4 py-3">
+            <span class="text-[var(--sub)]">watch</span>
+            <span class="amber">npm run watch-push</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-[var(--bg2)] border border-[var(--line)] rounded-lg p-6 mono text-xs overflow-x-auto">
+        <div class="text-[var(--sub)] mb-4">// repo structure</div>
+        <ul class="space-y-1.5 text-[#d8cdb8]">
+          <li>├── <span class="amber">src/</span></li>
+          <li>│   ├── <span class="amber">games/</span></li>
+          <li>│   │   └── <span class="amber">game1/</span></li>
+          <li>│   │       ├── base.lua <span class="text-[var(--sub)]">// module index</span></li>
+          <li>│   │       └── <span class="amber">modules/</span></li>
+          <li>│   │           ├── combat/</li>
+          <li>│   │           ├── render/</li>
+          <li>│   │           └── utility/</li>
+          <li>│   └── main.lua <span class="text-[var(--sub)]">// bootstrap</span></li>
+          <li>├── auto-push.js</li>
+          <li>└── package.json</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section id="profile" class="py-28 px-6 border-b border-[var(--line-soft)]">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex items-end justify-between mb-14 gap-4">
+        <h2 class="display text-3xl md:text-4xl font-bold tracking-tight">
+          <span data-lang="en">Profile</span>
+          <span data-lang="ja">プロフィール</span>
+        </h2>
+        <span class="mono text-xs text-[var(--sub)]">§06</span>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-8">
+
+        <!-- social links -->
+        <div class="space-y-4">
+          <a href="https://www.tiktok.com/@logfeetst" target="_blank" class="card flex items-center justify-between p-6 rounded-lg group">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-full bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center">
+                <svg class="w-5 h-5 amber" viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z"/></svg>
+              </div>
+              <div>
+                <div class="font-semibold">TikTok</div>
+                <div class="mono text-xs text-[var(--sub)]">@logfeetst</div>
+              </div>
+            </div>
+            <i data-lucide="arrow-up-right" class="w-5 h-5 text-[var(--sub)] group-hover:amber transition"></i>
+          </a>
+
+          <a href="https://open.spotify.com/user/31myihgwfnu4r5ypixlusurgy47i" target="_blank" class="card flex items-center justify-between p-6 rounded-lg group">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-full bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center">
+                <svg class="w-5 h-5 amber" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.59 14.4a.62.62 0 0 1-.85.21c-2.33-1.42-5.26-1.75-8.72-.96a.622.622 0 1 1-.276-1.215c3.79-.867 7.04-.494 9.66 1.105.3.183.39.57.19.86zm1.22-2.72a.78.78 0 0 1-1.07.257c-2.67-1.64-6.73-2.12-9.88-1.16a.781.781 0 1 1-.453-1.494c3.6-1.09 8.07-.56 11.14 1.32.37.226.49.71.26 1.08zm.11-2.83C14.4 8.87 8.99 8.68 6.02 9.58a.937.937 0 1 1-.544-1.793c3.41-1.035 9.38-.815 13.08 1.42a.938.938 0 0 1-.966 1.61z"/></svg>
+              </div>
+              <div>
+                <div class="font-semibold">Spotify</div>
+                <div class="mono text-xs text-[var(--sub)]">
+                  <span data-lang="en">profile</span><span data-lang="ja">プロフィールを開く</span>
+                </div>
+              </div>
+            </div>
+            <i data-lucide="arrow-up-right" class="w-5 h-5 text-[var(--sub)] group-hover:amber transition"></i>
+          </a>
+        </div>
+
+        <!-- favorite track -->
+        <div>
+          <div class="mono text-xs text-[var(--sub)] mb-3">
+            <span data-lang="en">// favorite track</span>
+            <span data-lang="ja">// お気に入りの曲</span>
+          </div>
+          <div class="card rounded-lg overflow-hidden">
+            <iframe
+              style="border-radius:0"
+              src="https://open.spotify.com/embed/track/1Xe9Jgrw4brBtZFsmQGhtB?utm_source=generator&theme=0"
+              width="100%"
+              height="152"
+              frameBorder="0"
+              allowfullscreen=""
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy">
+            </iframe>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="py-10 px-6">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-[var(--sub)]">
+      <p class="mono">© 2026 BGHACKERS</p>
+      <p>
+        <span data-lang="en">Inspired by</span><span data-lang="ja">影響を受けた作品:</span>
+        <a href="https://github.com/7GrandDadPGN/VapeV4ForRoblox" target="_blank" class="text-[var(--ink)] hover:amber underline underline-offset-4">VapeV4ForRoblox</a>
+      </p>
+    </div>
+  </footer>
+
+<script>
+  lucide.createIcons();
+
+  const body = document.body;
+  const toggleBtn = document.getElementById('lang-toggle');
+  const langText = document.getElementById('lang-text');
+  toggleBtn.addEventListener('click', () => {
+    if (body.classList.contains('lang-en')) {
+      body.classList.remove('lang-en'); body.classList.add('lang-ja');
+      langText.textContent = 'English';
+    } else {
+      body.classList.remove('lang-ja'); body.classList.add('lang-en');
+      langText.textContent = '日本語';
+    }
+  });
+
+  const copyBtn = document.getElementById('copy-btn');
+  const copyBtnText = document.getElementById('copy-btn-text');
+  const loaderCode = document.getElementById('loader-code').innerText;
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(loaderCode);
+      copyBtnText.textContent = 'Copied!';
+      setTimeout(() => { copyBtnText.textContent = 'Copy'; }, 2000);
+    } catch (e) { console.error(e); }
+  });
+
+  // boot log signature typing sequence
+  const lines = [
+    "> booting vape runtime",
+    "> resolving module graph...",
+    "> async loader online",
+    "> status: stable"
+  ];
+  const bootEl = document.getElementById('boot-log');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function typeLines(){
+    if(reduced){
+      bootEl.textContent = lines.join('\n');
+      return;
+    }
+    let li = 0, ci = 0;
+    bootEl.textContent = '';
+    const caret = document.createElement('span');
+    caret.className = 'caret';
+
+    function typeChar(){
+      if(li >= lines.length){
+        bootEl.appendChild(caret);
+        return;
+      }
+      const current = lines[li];
+      if(ci <= current.length){
+        bootEl.textContent = lines.slice(0, li).join('\n') + (li>0 ? '\n' : '') + current.slice(0, ci);
+        ci++;
+        setTimeout(typeChar, 14 + Math.random()*22);
+      } else {
+        li++; ci = 0;
+        setTimeout(typeChar, 120);
+      }
+    }
+    typeChar();
+  }
+  typeLines();
+</script>
+</body>
+</html>
